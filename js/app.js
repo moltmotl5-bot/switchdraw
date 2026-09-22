@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.1.6';
+  var APP_VERSION = '1.2.0';
   var dropzone = document.getElementById('dropzone');
   var fileInput = document.getElementById('file-input');
   var summaryEl = document.getElementById('summary');
@@ -10,8 +10,10 @@
   var downloadBtn = document.getElementById('download-btn');
   var errorEl = document.getElementById('error');
   var statusEl = document.getElementById('status');
+  var storeNoticeEl = document.getElementById('store-notice');
 
   var currentDevices = [];
+  var currentSourceFile = '';
 
   function showError(message) {
     errorEl.textContent = message;
@@ -26,103 +28,53 @@
     statusEl.hidden = !message;
   }
 
-  function renderSummary(devices) {
-    if (!devices.length) {
-      summaryEl.innerHTML = '<p class="muted">找不到可解析的交換器資料。請確認日誌包含 running-config 或 show interfaces status。</p>';
+  function updateStoreNotice() {
+    if (!storeNoticeEl) {
       return;
     }
-
-    summaryEl.innerHTML = devices.map(function (device) {
-      return [
-        '<article class="summary-card">',
-        '<h2>' + escapeHtml(device.hostname) + '</h2>',
-        '<ul>',
-        '<li>實體埠：' + device.counts.total + '</li>',
-        '<li>Up：' + device.counts.up + '</li>',
-        '<li>Down：' + device.counts.down + '</li>',
-        '<li>Shutdown：' + device.counts.shutdown + '</li>',
-        '<li>VLAN 數：' + Object.keys(device.vlans).length + '</li>',
-        '</ul>',
-        '</article>'
-      ].join('');
-    }).join('');
-  }
-
-  function escapeHtml(text) {
-    return String(text)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function renderPortBox(port, registry) {
-    var label = SwitchDraw.portLabel(port);
-    var vlanFill = SwitchDraw.portVlanColor(port, registry);
-    var status = SwitchDraw.portStatusDisplay(port);
-    return [
-      '<div class="port-box">',
-      '<div class="port-row port-row-iface">' + escapeHtml(label.title) + '</div>',
-      '<div class="port-row port-row-vlan" style="background:' + vlanFill + '">' + escapeHtml(label.vlan) + '</div>',
-      '<div class="port-row port-row-desc">' + escapeHtml(label.detail) + '</div>',
-      '<div class="port-row port-row-status" style="background:' + status.fill + ';color:' + status.textColor + '">' + escapeHtml(status.text) + '</div>',
-      '</div>'
-    ].join('');
-  }
-
-  function renderPreview(devices) {
-    if (!devices.length) {
-      previewEl.innerHTML = '';
-      return;
+    if (SwitchDraw.store.isAvailable()) {
+      storeNoticeEl.textContent = '解析成功後會自動儲存至專案 data/switches/ 資料夾。';
+      storeNoticeEl.classList.remove('warn');
+    } else {
+      storeNoticeEl.textContent = '本地儲存需執行 npm start 後以 http://localhost:8080 開啟（file:// 無法寫入專案資料夾）。';
+      storeNoticeEl.classList.add('warn');
     }
-
-    previewEl.innerHTML = devices.map(function (device) {
-      var registry = device.colorRegistry || SwitchDraw.createColorRegistry(device);
-      var groups = SwitchDraw.buildFaceplateGroups(device.physicalPorts);
-      var groupHtml = groups.map(function (group) {
-        return [
-          '<section class="module-block">',
-          '<h3>' + escapeHtml(group.moduleLabel) + '</h3>',
-          '<div class="row-label">奇數埠（上排）</div>',
-          '<div class="port-row">' + group.oddRow.map(function (p) { return renderPortBox(p, registry); }).join('') + '</div>',
-          '<div class="row-label">偶數埠（下排）</div>',
-          '<div class="port-row">' + group.evenRow.map(function (p) { return renderPortBox(p, registry); }).join('') + '</div>',
-          '</section>'
-        ].join('');
-      }).join('');
-
-      return [
-        '<section class="device-preview">',
-        '<h2>' + escapeHtml(device.hostname) + ' 前面板預覽</h2>',
-        groupHtml,
-        '</section>'
-      ].join('');
-    }).join('');
   }
 
-  function handleParsedDevices(devices) {
-    currentDevices = devices.map(function (device) {
-      return SwitchDraw.enrichDevice(device);
-    });
-    renderSummary(currentDevices);
-    renderPreview(currentDevices);
+  function handleParsedDevices(devices, sourceFile) {
+    currentSourceFile = sourceFile || currentSourceFile;
+    currentDevices = SwitchDraw.store.enrichDevices(devices);
+    SwitchDraw.ui.renderSummary(summaryEl, currentDevices);
+    SwitchDraw.ui.renderPreview(previewEl, currentDevices);
     downloadBtn.disabled = !currentDevices.length;
-    if (devices.length) {
-      showStatus('就緒。輸出格式：.xlsx（SwitchDraw v' + APP_VERSION + '）');
+
+    if (!currentDevices.length) {
+      return;
+    }
+
+    showStatus('就緒。輸出格式：.xlsx（SwitchDraw v' + APP_VERSION + '）');
+
+    if (SwitchDraw.store.isAvailable()) {
+      SwitchDraw.store.saveDevices(currentDevices, currentSourceFile).then(function (record) {
+        showStatus('已儲存至 data/switches/' + record.id + '.json，並可從「歷史記錄」查看。');
+      }).catch(function (err) {
+        showError('解析成功，但儲存失敗：' + err.message);
+      });
     }
   }
 
   function processText(text, filename) {
     showError('');
+    currentSourceFile = filename || '';
     try {
       var devices = SwitchDraw.parseLog(text);
       if (!devices.length) {
         showError('無法從「' + filename + '」解析交換器資料。');
       }
-      handleParsedDevices(devices);
+      handleParsedDevices(devices, filename);
     } catch (err) {
       showError('解析失敗：' + err.message);
-      handleParsedDevices([]);
+      handleParsedDevices([], filename);
     }
   }
 
@@ -188,6 +140,7 @@
       downloadBtn.disabled = true;
       return;
     }
+    updateStoreNotice();
     showStatus('SwitchDraw v' + APP_VERSION + ' 已就緒。輸出格式：.xlsx');
   }
 

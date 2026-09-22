@@ -1,10 +1,11 @@
 {
   "name": "switchdraw",
-  "version": "1.1.6",
+  "version": "1.2.0",
   "private": true,
   "description": "Cisco switch port diagram generator",
   "scripts": {
-    "test": "node --test test/parse.test.js"
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
   },
   "devDependencies": {
     "exceljs": "4.4.0"
