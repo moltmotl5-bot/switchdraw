@@ -1,0 +1,95 @@
+SW-CORE-01#terminal length 0
+SW-CORE-01#show running-config
+!
+version 15.2
+!
+hostname SW-CORE-01
+!
+interface GigabitEthernet1/0/1
+ description PC-FINANCE-01
+ switchport mode access
+ switchport access vlan 10
+ switchport voice vlan 20
+!
+interface GigabitEthernet1/0/2
+ description PC-FINANCE-02
+ switchport mode access
+ switchport access vlan 10
+!
+interface GigabitEthernet1/0/3
+ description AP-LOBBY
+ switchport mode access
+ switchport access vlan 30
+!
+interface GigabitEthernet1/0/4
+ description SPARE
+ shutdown
+ switchport mode access
+ switchport access vlan 10
+!
+interface GigabitEthernet1/0/47
+ description UPLINK-TO-DIST
+ switchport mode trunk
+ switchport trunk native vlan 1
+ switchport trunk allowed vlan 10,20,30
+!
+interface GigabitEthernet1/0/48
+ description UPLINK-BACKUP
+ switchport mode trunk
+ switchport trunk native vlan 1
+ switchport trunk allowed vlan 10,20,30
+!
+interface TenGigabitEthernet1/1/1
+ description TO-CORE-RTR
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30
+!
+interface TenGigabitEthernet1/1/2
+ description TO-CORE-RTR-2
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30
+!
+interface Port-channel1
+ description LAG-UPLINK
+ switchport mode trunk
+ switchport trunk allowed vlan 10,20,30
+!
+interface Vlan10
+ ip address 10.10.10.1 255.255.255.0
+!
+end
+SW-CORE-01#show interfaces status
+
+Port      Name               Status       Vlan       Duplex  Speed Type
+Gi1/0/1   PC-FINANCE-01      connected    10         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/2   PC-FINANCE-02      notconnect   10         auto    auto   10/100/1000BaseTX
+Gi1/0/3   AP-LOBBY           connected    30         a-full  a-1000 10/100/1000BaseTX
+Gi1/0/4   SPARE              disabled     10         auto    auto   10/100/1000BaseTX
+Gi1/0/5                      notconnect   20         auto    auto   10/100/1000BaseTX
+Gi1/0/6                      connected    20         a-full  a-100  10/100/1000BaseTX
+Gi1/0/47  UPLINK-TO-DIST     connected    trunk      a-full  a-1000 10/100/1000BaseTX
+Gi1/0/48  UPLINK-BACKUP      connected    trunk      a-full  a-1000 10/100/1000BaseTX
+Te1/1/1   TO-CORE-RTR        connected    trunk      full    10G    SFP-10GBase-SR
+Te1/1/2   TO-CORE-RTR-2      notconnect   trunk      auto    auto   SFP-10GBase-SR
+SW-CORE-01#show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Gi1/0/47, Gi1/0/48, Te1/1/1
+10   FINANCE                          active    Gi1/0/1, Gi1/0/2, Gi1/0/4
+20   VOICE                            active    Gi1/0/5, Gi1/0/6
+30   WIFI                             active    Gi1/0/3
+SW-CORE-01#show cdp neighbors
+
+Device ID        Local Intrfce     Holdtme    Capability  Platform  Port ID
+DIST-SW-02       Gig 1/0/47        156        S I         WS-C3850  Gig 1/0/1
+CORE-RTR-01      Ten 1/1/1         142        R S I       ISR4451   Gig 0/0/0
+SW-CORE-01#show lldp neighbors detail
+
+Local Intf: Gi1/0/1
+System Name: finance-pc-01
+Port id: eth0
+
+Local Intf: Gi1/0/47
+System Name: DIST-SW-02
+Port id: Gi1/0/1

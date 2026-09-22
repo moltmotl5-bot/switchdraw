@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SwitchDraw - 交換器埠位圖產生器</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <main>
+    <header>
+      <h1>SwitchDraw</h1>
+      <p class="subtitle">上傳 PuTTY 擷取的 Cisco IOS / IOS-XE 設定日誌，產生 Excel 前面板埠位圖。</p>
+    </header>
+
+    <section class="panel">
+      <div id="dropzone" class="dropzone">
+        <strong>拖放 *.log 或 *.txt 到這裡</strong>
+        <span class="muted">或點擊選擇檔案</span>
+      </div>
+      <input id="file-input" type="file" accept=".log,.txt">
+      <div class="toolbar">
+        <button id="download-btn" type="button" disabled>下載 Excel 埠位圖</button>
+      </div>
+      <p id="error" hidden></p>
+    </section>
+
+    <section class="panel">
+      <h2>解析摘要</h2>
+      <div id="summary">
+        <p class="muted">尚未上傳檔案。</p>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2>前面板預覽</h2>
+      <div id="preview"></div>
+    </section>
+
+    <footer>
+      所有解析與 Excel 產生都在您的瀏覽器本機完成，不會上傳或連線至外部服務。
+    </footer>
+  </main>
+
+  <script src="js/parse.js"></script>
+  <script src="js/faceplate.js"></script>
+  <script src="js/workbook.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
