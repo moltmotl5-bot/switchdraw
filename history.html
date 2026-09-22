@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SwitchDraw - 歷史記錄</title>
+  <link rel="stylesheet" href="css/app.css?v=1.2.1">
+</head>
+<body>
+  <main>
+    <header class="page-header">
+      <div>
+        <h1>歷史記錄 <span class="version-badge">v1.2.1</span></h1>
+        <p class="subtitle">查看主機 <code>data/switches/</code> 的解析結果（Docker volume）。</p>
+      </div>
+      <button id="refresh-btn" type="button" class="btn-secondary">重新整理</button>
+    </header>
+
+    <p id="status" class="status" hidden></p>
+    <p id="error" hidden></p>
+
+    <div class="history-layout">
+      <section class="panel history-list-panel">
+        <h2>記錄列表</h2>
+        <div id="record-list">
+          <p class="muted">載入中…</p>
+        </div>
+      </section>
+
+      <section class="history-detail-panel">
+        <div id="record-detail">
+          <p class="muted">請選擇左側一筆記錄。</p>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script src="vendor/exceljs.bare.min.js?v=1.2.1"></script>
+  <script src="js/parse.js?v=1.2.1"></script>
+  <script src="js/faceplate.js?v=1.2.1"></script>
+  <script src="js/workbook.js?v=1.2.1"></script>
+  <script src="js/ui.js?v=1.2.1"></script>
+  <script src="js/store-client.js?v=1.2.1"></script>
+  <script src="js/layout.js?v=1.2.1"></script>
+  <script src="js/history.js?v=1.2.1"></script>
+</body>
+</html>

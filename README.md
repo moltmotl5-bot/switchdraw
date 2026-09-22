@@ -1,6 +1,6 @@
 # SwitchDraw
 
-**版本 1.1.5**
+**版本 1.2.1**
 
 輕量的 Cisco IOS / IOS-XE 交換器埠位圖產生器。上傳 PuTTY 擷取的 `*.log`，在瀏覽器本機解析後下載 Excel 前面板圖（標準 `.xlsx`，相容 Microsoft 365 Excel）。
 
@@ -9,31 +9,108 @@
 - 解析 `show running-config`、`show interfaces status`、`show interfaces description`、`show ip interface brief`、`show vlan brief`、`show cdp/lldp neighbors`
 - 依堆疊成員產生前面板圖（奇數埠上排、偶數埠下排）
 - 中央 VLAN 色碼表：同一 VLAN 在圖例、前面板、VLANs 工作表使用相同顏色
-- Excel 前面板每埠分兩格：VLAN（色碼）＋ Port Status（連線狀態）
+- Excel 前面板每埠一欄四列：Interface / VLAN ID / Description / Port Status
 - 附 `Ports` 與 `VLANs` 明細工作表
+- **本地儲存**：解析結果以 JSON 寫入 `data/switches/`
+- **側邊欄導覽**與 **歷史記錄頁**（[`history.html`](history.html)）
 
-## Windows 本機測試（v1.1.4）
+## Docker 部署（建議）
 
-1. 取得程式碼：
-   ```powershell
-   git clone https://github.com/moltmotl5-bot/switchdraw.git
-   cd switchdraw
-   git pull
-   git checkout v1.1.4
-   ```
-2. 用 **Chrome** 或 **Edge** 開啟 `index.html`。**請按 Ctrl+F5 強制重新整理**，避免載入舊版快取。
-3. 確認頁面標題顯示 **SwitchDraw v1.1.4**，按鈕為「下載 Excel 埠位圖（.xlsx）」。
+JSON 解析結果儲存在**主機**的 `./data/switches/`，透過 volume 掛載進容器；容器重建或更新後資料仍保留。
 
-支援 Cisco 縮寫指令（`sh int status`、`sh vlan br`、`sh ip int br`、`sh cdp nei det` 等）。
-4. 先用 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試，下載檔名應為 `*-switchport.xlsx`。
-5. 再用 PuTTY 真實 `.log` 測試。
+### 需求
 
-不需安裝 Node.js 或 npm（`vendor/exceljs.bare.min.js` 已內附）。若瀏覽器阻擋本機檔案，可改用：
-```powershell
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)（Windows / macOS）或 Docker Engine（Linux）
+- Docker Compose v2
+
+### 啟動
+
+```bash
+git clone https://github.com/moltmotl5-bot/switchdraw.git
 cd switchdraw
-python -m http.server 8080
+git pull
+
+mkdir -p data/switches
+docker compose up -d --build
 ```
-然後開啟 `http://localhost:8080/index.html`。
+
+瀏覽器開啟 `http://localhost:8080/index.html`。
+
+### 常用指令
+
+```bash
+docker compose logs -f      # 查看日誌
+docker compose down         # 停止
+docker compose up -d --build  # 更新後重建
+```
+
+自訂埠號（例：9090）：
+
+```bash
+PORT=9090 docker compose up -d --build
+```
+
+### JSON 儲存位置
+
+| 位置 | 說明 |
+|------|------|
+| 主機 `./data/switches/*.json` | 實際資料（持久化） |
+| 容器 `/data/switches/` | 掛載點（`SWITCHDRAW_STORE_DIR`） |
+
+備份時直接複製主機上的 `data/switches/` 即可。
+
+### 疑難排解：`permission denied` 寫入 `/data/switches`
+
+若在 `compose up` **之前**手動建立 `data/switches/`，主機目錄擁有者可能與容器內 `node` 使用者（UID 1000）不符。
+
+**v1.2.2+** 啟動時會自動修正掛載目錄權限。更新後重建：
+
+```bash
+docker compose down
+docker compose up -d --build
+```
+
+若仍失敗，可在主機手動修正（Linux / macOS）：
+
+```bash
+sudo chown -R 1000:1000 data/switches
+# 或（較寬鬆，不建議用於正式環境）
+chmod 777 data/switches
+```
+
+Windows Docker Desktop 通常較少遇到此問題；若遇到，刪除 `data/switches` 後讓容器自動建立即可：
+
+```powershell
+Remove-Item -Recurse -Force data\switches
+docker compose up -d --build
+```
+
+### Windows（PowerShell）
+
+```powershell
+git clone https://github.com/moltmotl5-bot/switchdraw.git
+cd switchdraw
+git pull
+
+New-Item -ItemType Directory -Force -Path data\switches
+docker compose up -d --build
+```
+
+用 **Chrome** 或 **Edge** 開啟 `http://localhost:8080/index.html`（**Ctrl+F5** 清除快取）。
+
+1. 確認側邊欄顯示 **SwitchDraw v1.2.1**
+2. 用 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試；主機 `data/switches/` 應出現 JSON
+3. 在「歷史記錄」頁確認舊資料
+
+## 本機開發（非 Docker）
+
+```bash
+npm install
+npm start
+# http://localhost:8080
+```
+
+若只需靜態預覽（不寫入 JSON），可直接開啟 `index.html`。
 
 ## PuTTY 日誌指令（依序執行）
 
@@ -53,11 +130,12 @@ PuTTY 設定：**Session → Logging → All session output**，並勾選 **Omit
 
 ## 使用方式
 
-1. 直接用瀏覽器開啟 [`index.html`](index.html)，或部署至任意靜態網站。
+1. 以 Docker 啟動（見上方）或 `npm start`，開啟 `http://localhost:8080/index.html`。
 2. 拖放或選擇 PuTTY 日誌（`.log` / `.txt`）。
-3. 預覽前面板後，點擊「下載 Excel 埠位圖」。
+3. 預覽前面板後，點擊「下載 Excel 埠位圖」；解析結果會自動儲存至主機 `data/switches/*.json`。
+4. 在側邊欄進入「歷史記錄」，查看、下載或刪除舊記錄。
 
-所有處理都在瀏覽器完成，不會上傳設定檔。Excel 產生使用內附的 [ExcelJS](https://github.com/exceljs/exceljs) 瀏覽器版（`vendor/exceljs.bare.min.js`），無 CDN、無建置步驟。
+解析與 Excel 產生在瀏覽器完成；JSON 由伺服器寫入主機掛載目錄，不會上傳至外部。Excel 使用內附 [ExcelJS](https://github.com/exceljs/exceljs)（`vendor/exceljs.bare.min.js`）。
 
 ## 安全性（Cortex XDR / 防毒軟體）
 
@@ -76,10 +154,19 @@ npm test
 
 ## 專案結構
 
-- [`index.html`](index.html) — 主頁面
+- [`index.html`](index.html) — 上傳解析頁
+- [`history.html`](history.html) — 歷史記錄頁
+- [`Dockerfile`](Dockerfile) — 容器映像
+- [`docker-compose.yml`](docker-compose.yml) — 部署設定（主機 volume 掛載）
+- [`server.js`](server.js) — 靜態檔案 + JSON 儲存 API
+- [`data/switches/`](data/switches/) — 主機持久化 JSON（`.gitignore` 排除實際資料）
 - [`js/parse.js`](js/parse.js) — Cisco 日誌解析
 - [`js/faceplate.js`](js/faceplate.js) — 前面板分組與配色
 - [`js/workbook.js`](js/workbook.js) — ExcelJS 活頁簿產生
+- [`js/ui.js`](js/ui.js) — 共用摘要／預覽渲染
+- [`js/store-client.js`](js/store-client.js) — 前端儲存 API 客戶端
+- [`js/layout.js`](js/layout.js) — 側邊欄版面
 - [`vendor/exceljs.bare.min.js`](vendor/exceljs.bare.min.js) — Excel 產生函式庫（瀏覽器版，內附）
 - [`SECURITY.md`](SECURITY.md) — 安全性與 XDR 說明
 - [`js/app.js`](js/app.js) — 上傳、預覽、下載 UI
+- [`js/history.js`](js/history.js) — 歷史記錄 UI

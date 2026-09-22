@@ -21,10 +21,90 @@ body {
   line-height: 1.5;
 }
 
+body.has-sidebar {
+  min-height: 100vh;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 240px;
+  flex: 0 0 240px;
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--accent);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.sidebar-version {
+  font-size: 0.85rem;
+  color: #cbd5e1;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: #e5e7eb;
+  text-decoration: none;
+  transition: background 0.15s ease;
+}
+
+.sidebar-link:hover,
+.sidebar-link.is-active {
+  background: rgba(37, 99, 235, 0.25);
+  color: #fff;
+}
+
+.sidebar-icon {
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar-foot {
+  margin-top: auto;
+  font-size: 0.85rem;
+}
+
+.sidebar-foot code {
+  color: #dbeafe;
+}
+
 main {
+  flex: 1;
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 16px 48px;
+  width: 100%;
 }
 
 header {
@@ -110,6 +190,93 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.btn-secondary {
+  background: #475569;
+}
+
+.btn-danger {
+  background: #b91c1c;
+}
+
+.store-notice {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.store-notice.warn {
+  background: #fffbeb;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.history-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.history-list-panel {
+  margin-bottom: 0;
+}
+
+.history-detail-panel {
+  min-width: 0;
+}
+
+.record-item {
+  width: 100%;
+  text-align: left;
+  background: #fafbfc;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.record-item.is-active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.record-item strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.record-meta {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.record-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.record-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 #error {
   color: var(--danger);
   margin-top: 12px;
@@ -159,45 +326,60 @@ button:disabled {
 }
 
 .port-box {
-  display: flex;
-  width: 128px;
-  min-height: 56px;
+  width: 108px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 
-.port-vlan-cell {
-  flex: 1.2;
-  padding: 6px;
-  color: #1a1a1a;
-}
-
-.port-status-cell {
-  flex: 0.8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  font-weight: 600;
+.port-row {
+  padding: 4px 6px;
   text-align: center;
   word-break: break-word;
 }
 
-.port-name {
+.port-row-iface {
+  background: #ecf0f1;
   font-weight: 700;
 }
 
-.port-vlan {
-  opacity: 0.92;
-  word-break: break-all;
+.port-row-vlan {
+  color: #1a1a1a;
+}
+
+.port-row-desc {
+  background: #fff;
+  min-height: 28px;
+}
+
+.port-row-status {
+  font-weight: 600;
 }
 
 footer {
   margin-top: 24px;
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+@media (max-width: 900px) {
+  .app-shell {
+    flex-direction: column;
+  }
+
+  .sidebar {
+    width: 100%;
+    flex: none;
+  }
+
+  .history-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header {
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 640px) {
