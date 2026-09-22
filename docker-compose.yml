@@ -1,7 +1,7 @@
 services:
   switchdraw:
     build: .
-    image: switchdraw:1.2.1
+    image: switchdraw:1.2.2
     container_name: switchdraw
     ports:
       - "${PORT:-8080}:8080"

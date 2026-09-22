@@ -59,6 +59,32 @@ PORT=9090 docker compose up -d --build
 
 備份時直接複製主機上的 `data/switches/` 即可。
 
+### 疑難排解：`permission denied` 寫入 `/data/switches`
+
+若在 `compose up` **之前**手動建立 `data/switches/`，主機目錄擁有者可能與容器內 `node` 使用者（UID 1000）不符。
+
+**v1.2.2+** 啟動時會自動修正掛載目錄權限。更新後重建：
+
+```bash
+docker compose down
+docker compose up -d --build
+```
+
+若仍失敗，可在主機手動修正（Linux / macOS）：
+
+```bash
+sudo chown -R 1000:1000 data/switches
+# 或（較寬鬆，不建議用於正式環境）
+chmod 777 data/switches
+```
+
+Windows Docker Desktop 通常較少遇到此問題；若遇到，刪除 `data/switches` 後讓容器自動建立即可：
+
+```powershell
+Remove-Item -Recurse -Force data\switches
+docker compose up -d --build
+```
+
 ### Windows（PowerShell）
 
 ```powershell
