@@ -1,5 +1,7 @@
 # SwitchDraw
 
+**版本 1.0.0**
+
 輕量、零依賴的 Cisco IOS / IOS-XE 交換器埠位圖產生器。上傳 PuTTY 擷取的 `*.log`，在瀏覽器本機解析後下載 Excel 前面板圖（SpreadsheetML `.xls`）。
 
 ## 功能
@@ -8,6 +10,39 @@
 - 依堆疊成員產生前面板圖（奇數埠上排、偶數埠下排）
 - 依 VLAN / Trunk / Shutdown 狀態上色
 - 附 `Ports` 與 `VLANs` 明細工作表
+
+## Windows 本機測試（v1.0.0）
+
+1. 取得程式碼：
+   ```powershell
+   git clone https://github.com/moltmotl5-bot/switchdraw.git
+   cd switchdraw
+   git checkout v1.0.0
+   ```
+2. 用 **Chrome** 或 **Edge** 開啟資料夾內的 `index.html`（雙擊即可）。
+3. 先用內附範例 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試上傳與 Excel 下載。
+4. 再用您從 PuTTY 擷取的真實 `.log` 測試。
+
+不需安裝 Node.js、Python 或任何套件。若瀏覽器阻擋本機檔案，可改用：
+```powershell
+cd switchdraw
+python -m http.server 8080
+```
+然後開啟 `http://localhost:8080/index.html`。
+
+## PuTTY 日誌指令（依序執行）
+
+```text
+terminal length 0
+terminal width 0
+show running-config
+show interfaces status
+show vlan brief
+show cdp neighbors detail
+show lldp neighbors detail
+```
+
+PuTTY 設定：**Session → Logging → All session output**，並勾選 **Omit known password fields**。
 
 ## 使用方式
 
