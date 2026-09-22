@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.1.5';
+  var APP_VERSION = '1.1.6';
   var dropzone = document.getElementById('dropzone');
   var fileInput = document.getElementById('file-input');
   var summaryEl = document.getElementById('summary');
@@ -57,18 +57,15 @@
   }
 
   function renderPortBox(port, registry) {
-    var style = SwitchDraw.portStyle(port, registry);
     var label = SwitchDraw.portLabel(port);
+    var vlanFill = SwitchDraw.portVlanColor(port, registry);
     var status = SwitchDraw.portStatusDisplay(port);
     return [
       '<div class="port-box">',
-      '<div class="port-vlan-cell" style="background:' + style.fill + '">',
-      '<div class="port-name">' + escapeHtml(label.title) + '</div>',
-      '<div class="port-vlan">' + escapeHtml(label.vlan) + '</div>',
-      '</div>',
-      '<div class="port-status-cell" style="background:' + status.fill + ';color:' + status.textColor + '">',
-      escapeHtml(status.text),
-      '</div>',
+      '<div class="port-row port-row-iface">' + escapeHtml(label.title) + '</div>',
+      '<div class="port-row port-row-vlan" style="background:' + vlanFill + '">' + escapeHtml(label.vlan) + '</div>',
+      '<div class="port-row port-row-desc">' + escapeHtml(label.detail) + '</div>',
+      '<div class="port-row port-row-status" style="background:' + status.fill + ';color:' + status.textColor + '">' + escapeHtml(status.text) + '</div>',
       '</div>'
     ].join('');
   }
