@@ -46,7 +46,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
       return { fill: ROUTED_COLOR, text: '#FFFFFF', label: 'L3' };
     }
     var base = vlanColor(port.accessVlan);
-    if (port.linkStatus !== 'connected') {
+    if (!SD.isLinkUp(port.linkStatus)) {
       base = lighten(base, 80);
     }
     return { fill: base, text: '#1A1A1A', label: port.accessVlan || '-' };

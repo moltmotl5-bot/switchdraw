@@ -21,6 +21,8 @@ var SwitchDraw = SwitchDraw || {};
     IFACE_SHORT[IFACE_EXPAND[short]] = short;
   });
 
+  var PORT_PREFIX = '(?:Fa|Gi|GigabitEthernet|Te|TenGigabitEthernet|Tw|Fi|Fo|Hu|Twe|Eth|Ethernet)';
+
   function cleanLog(text) {
     return text
       .replace(/\r\n/g, '\n')
@@ -97,6 +99,70 @@ var SwitchDraw = SwitchDraw || {};
       /^(Fa|Gi|Te|Tw|Fi|Fo|Hu|Twe|Eth)\d+\/\d+$/.test(n);
   }
 
+  function normalizeLinkStatus(status, protocol) {
+    var s = String(status || '').toLowerCase().trim();
+    var p = String(protocol || '').toLowerCase().trim();
+
+    if (s.indexOf('administratively down') !== -1 || s === 'disabled') {
+      return 'disabled';
+    }
+    if (s.indexOf('err-disabled') !== -1) {
+      return 'err-disabled';
+    }
+    if (s.indexOf('connected') === 0 || s === 'up') {
+      return 'connected';
+    }
+    if (s === 'notconnect' || s === 'not connected' || s === 'down' || p === 'down') {
+      return 'notconnect';
+    }
+    if (p === 'up' && s !== 'down') {
+      return 'connected';
+    }
+    return s || 'unknown';
+  }
+
+  function isLinkUp(linkStatus) {
+    return linkStatus === 'connected';
+  }
+
+  function extractCommandSection(text, commands) {
+    var lines = text.split('\n');
+    var startIdx = -1;
+
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      var lower = line.toLowerCase();
+      for (var c = 0; c < commands.length; c++) {
+        var cmd = commands[c].toLowerCase();
+        if (lower.indexOf(cmd) !== -1 && /(?:^|[#>\s])(?:show|sh)\s/i.test(line)) {
+          startIdx = i + 1;
+          break;
+        }
+      }
+      if (startIdx !== -1) {
+        break;
+      }
+    }
+
+    if (startIdx === -1) {
+      return '';
+    }
+
+    var sectionLines = [];
+    for (var j = startIdx; j < lines.length; j++) {
+      var row = lines[j];
+      if (/^[A-Za-z0-9_.-]+[#>]/.test(row)) {
+        break;
+      }
+      if (/^(?:show|sh)\s+/i.test(row.trim())) {
+        break;
+      }
+      sectionLines.push(row);
+    }
+
+    return sectionLines.join('\n');
+  }
+
   function splitByDevice(text) {
     var hostnameMatches = [];
     var hostnameRe = /^hostname\s+(\S+)/gm;
@@ -109,9 +175,8 @@ var SwitchDraw = SwitchDraw || {};
     hostnameMatches.forEach(function (entry) {
       uniqueNames[entry.name] = true;
     });
-    var hostnameList = Object.keys(uniqueNames);
 
-    if (hostnameList.length <= 1) {
+    if (Object.keys(uniqueNames).length <= 1) {
       var singleHost = hostnameMatches[0] ? hostnameMatches[0].name : '';
       if (!singleHost) {
         var promptMatch = text.match(/^([A-Za-z0-9_.-]+)[>#]/m);
@@ -192,66 +257,122 @@ var SwitchDraw = SwitchDraw || {};
     return interfaces;
   }
 
-  function findSection(text, markers) {
-    var lower = text.toLowerCase();
-    for (var i = 0; i < markers.length; i++) {
-      var idx = lower.indexOf(markers[i].toLowerCase());
-      if (idx !== -1) {
-        return text.slice(idx);
+  function headerColumnPositions(headerLine) {
+    var names = ['Port', 'Name', 'Status', 'Vlan', 'Duplex', 'Speed', 'Type'];
+    var positions = [];
+    names.forEach(function (name) {
+      var idx = headerLine.indexOf(name);
+      if (idx >= 0) {
+        positions.push({ name: name, start: idx });
       }
+    });
+    positions.sort(function (a, b) { return a.start - b.start; });
+    return positions;
+  }
+
+  function valueAtColumn(line, positions, columnName) {
+    for (var i = 0; i < positions.length; i++) {
+      if (positions[i].name !== columnName) {
+        continue;
+      }
+      var start = positions[i].start;
+      var end = i + 1 < positions.length ? positions[i + 1].start : line.length;
+      return line.substring(start, end).trim();
     }
     return '';
   }
 
-  function parseInterfaceStatus(text) {
-    var section = findSection(text, [
-      'show interfaces status',
-      'show interface status',
-      'show int status'
-    ]);
-    if (!section) {
-      return {};
+  function parseStatusLineFromRight(rest) {
+    var type = '';
+    var speed = '';
+    var duplex = '';
+    var vlan = '';
+    var status = '';
+    var description = '';
+
+    var typeMatch = rest.match(/\s+((?:10\/100\/1000)?Base[A-Za-z0-9+\/-]+|\S*(?:SFP|G-)[A-Za-z0-9+\/-]*)\s*$/i);
+    if (typeMatch) {
+      type = typeMatch[1].trim();
+      rest = rest.slice(0, typeMatch.index).trim();
     }
 
+    var speedMatch = rest.match(/\s+(a-?\d+(?:\.\d+)?(?:G|M|K)?|auto|\d+(?:\.\d+)?(?:G|M|K)?)\s*$/i);
+    if (speedMatch) {
+      speed = speedMatch[1].trim();
+      rest = rest.slice(0, speedMatch.index).trim();
+    }
+
+    var duplexMatch = rest.match(/\s+(a-full|a-half|full|half|auto)\s*$/i);
+    if (duplexMatch) {
+      duplex = duplexMatch[1].trim();
+      rest = rest.slice(0, duplexMatch.index).trim();
+    }
+
+    var vlanMatch = rest.match(/\s+(trunk|\d{1,4})\s*$/i);
+    if (vlanMatch) {
+      vlan = vlanMatch[1].trim();
+      rest = rest.slice(0, vlanMatch.index).trim();
+    }
+
+    var statusMatch = rest.match(/\s+(connected(?::\s*\S+)?|notconnect|disabled|err-disabled|up|down)\s*$/i);
+    if (statusMatch) {
+      status = statusMatch[1].trim();
+      rest = rest.slice(0, statusMatch.index).trim();
+    }
+
+    description = rest.trim();
+    return {
+      description: description,
+      status: normalizeLinkStatus(status),
+      vlan: vlan,
+      duplex: duplex,
+      speed: speed,
+      type: type
+    };
+  }
+
+  function parseInterfaceStatusSection(section) {
     var lines = section.split('\n');
     var result = {};
     var started = false;
-    var headerCols = [];
+    var positions = [];
 
     lines.forEach(function (line) {
-      if (/^Port\s+/i.test(line)) {
+      if (/^Port\s+/i.test(line) && /Status/i.test(line)) {
         started = true;
-        headerCols = line.trim().split(/\s{2,}/);
+        positions = headerColumnPositions(line);
         return;
       }
       if (!started || !line.trim() || /^[-\s]+$/.test(line)) {
         return;
       }
-      if (/^Port\s+/i.test(line)) {
+
+      var portMatch = line.match(new RegExp('^(' + PORT_PREFIX + '\\S*)\\s*(.*)$', 'i'));
+      if (!portMatch) {
         return;
       }
 
-      var cols = line.trim().split(/\s{2,}/);
-      if (cols.length < 2) {
+      var port = normalizeInterfaceName(portMatch[1]);
+      if (!isPhysicalInterface(port)) {
         return;
       }
 
-      var port = normalizeInterfaceName(cols[0]);
-      var entry = result[port] || { name: port };
-
-      if (headerCols.length >= 6) {
-        entry.description = (cols[1] || '').trim();
-        entry.status = (cols[2] || '').trim().toLowerCase();
-        entry.vlan = (cols[3] || '').trim();
-        entry.duplex = (cols[4] || '').trim();
-        entry.speed = (cols[5] || '').trim();
-        entry.type = (cols[6] || '').trim();
+      var entry = { name: port };
+      if (positions.length >= 4) {
+        entry.description = valueAtColumn(line, positions, 'Name');
+        entry.status = normalizeLinkStatus(valueAtColumn(line, positions, 'Status'));
+        entry.vlan = valueAtColumn(line, positions, 'Vlan');
+        entry.duplex = valueAtColumn(line, positions, 'Duplex');
+        entry.speed = valueAtColumn(line, positions, 'Speed');
+        entry.type = valueAtColumn(line, positions, 'Type');
       } else {
-        entry.status = (cols[1] || '').trim().toLowerCase();
-        entry.vlan = (cols[2] || '').trim();
-        entry.duplex = (cols[3] || '').trim();
-        entry.speed = (cols[4] || '').trim();
-        entry.type = (cols[5] || '').trim();
+        var parsed = parseStatusLineFromRight(portMatch[2]);
+        entry.description = parsed.description;
+        entry.status = parsed.status;
+        entry.vlan = parsed.vlan;
+        entry.duplex = parsed.duplex;
+        entry.speed = parsed.speed;
+        entry.type = parsed.type;
       }
 
       result[port] = entry;
@@ -260,12 +381,71 @@ var SwitchDraw = SwitchDraw || {};
     return result;
   }
 
-  function parseVlanBrief(text) {
-    var section = findSection(text, ['show vlan brief', 'show vlan']);
-    if (!section) {
-      return {};
-    }
+  function parseInterfaceStatus(text) {
+    var section = extractCommandSection(text, [
+      'show interfaces status',
+      'show interface status',
+      'show int status'
+    ]);
+    return section ? parseInterfaceStatusSection(section) : {};
+  }
 
+  function parseIpInterfaceBriefSection(section) {
+    var lines = section.split('\n');
+    var result = {};
+    var started = false;
+
+    lines.forEach(function (line) {
+      if (/^Interface\s+/i.test(line) && /Status/i.test(line)) {
+        started = true;
+        return;
+      }
+      if (!started || !line.trim() || /^[-\s]+$/.test(line)) {
+        return;
+      }
+
+      var match = line.match(new RegExp('^(' + PORT_PREFIX + '\\S*)\\s+\\S+\\s+\\S+\\s+\\S+\\s+(\\S+(?:\\s+down)?)\\s+(\\S+)\\s*$', 'i'));
+      if (!match) {
+        return;
+      }
+
+      var port = normalizeInterfaceName(match[1]);
+      if (!isPhysicalInterface(port)) {
+        return;
+      }
+
+      result[port] = {
+        name: port,
+        status: normalizeLinkStatus(match[2], match[3]),
+        adminDown: match[2].toLowerCase().indexOf('administratively down') !== -1
+      };
+    });
+
+    return result;
+  }
+
+  function parseIpInterfaceBrief(text) {
+    var section = extractCommandSection(text, [
+      'show ip interface brief',
+      'show ip int brief'
+    ]);
+    return section ? parseIpInterfaceBriefSection(section) : {};
+  }
+
+  function mergeInterfaceStatus(primary, secondary) {
+    var merged = {};
+    Object.keys(primary).forEach(function (port) {
+      merged[port] = Object.assign({}, primary[port]);
+    });
+    Object.keys(secondary).forEach(function (port) {
+      if (!merged[port] || !merged[port].status || merged[port].status === 'unknown') {
+        merged[port] = Object.assign({}, merged[port] || {}, secondary[port]);
+      }
+    });
+    return merged;
+  }
+
+  function parseVlanBriefSection(section) {
     var lines = section.split('\n');
     var vlans = {};
     var started = false;
@@ -275,15 +455,16 @@ var SwitchDraw = SwitchDraw || {};
         started = true;
         return;
       }
-      if (!started || !line.trim() || /^[-\s]+$/.test(line)) {
+      if (!started || !line.trim() || /^[-=\s]+$/.test(line)) {
         return;
       }
-      var m = line.match(/^(\d+)\s+(\S+)\s+\S+\s*(.*)$/);
+
+      var m = line.match(/^(\d{1,4})\s+(.+?)\s+(active|suspend|act\/\S+|unsupport|unsup)\s*(.*)?$/i);
       if (m) {
         vlans[m[1]] = {
           id: m[1],
-          name: m[2],
-          ports: m[3] ? m[3].split(',').map(function (p) {
+          name: m[2].trim(),
+          ports: m[4] ? m[4].split(',').map(function (p) {
             return normalizeInterfaceName(p.trim());
           }).filter(Boolean) : []
         };
@@ -293,8 +474,52 @@ var SwitchDraw = SwitchDraw || {};
     return vlans;
   }
 
+  function parseVlansFromConfig(text) {
+    var vlans = {};
+    var blocks = text.split(/^vlan\s+/im);
+    blocks.slice(1).forEach(function (block) {
+      var idMatch = block.match(/^(\d{1,4})\b/);
+      if (!idMatch) {
+        return;
+      }
+      var id = idMatch[1];
+      var nameMatch = block.match(/^name\s+(.+)$/im);
+      vlans[id] = {
+        id: id,
+        name: nameMatch ? nameMatch[1].trim() : ('VLAN' + id),
+        ports: []
+      };
+    });
+    return vlans;
+  }
+
+  function parseVlanBrief(text) {
+    var section = extractCommandSection(text, ['show vlan brief']);
+    var vlans = section ? parseVlanBriefSection(section) : {};
+
+    if (!Object.keys(vlans).length) {
+      section = extractCommandSection(text, ['show vlan']);
+      vlans = section ? parseVlanBriefSection(section) : {};
+    }
+
+    return Object.assign({}, parseVlansFromConfig(text), vlans);
+  }
+
+  function enrichVlansFromPorts(vlans, ports) {
+    var enriched = Object.assign({}, vlans);
+    ports.forEach(function (port) {
+      ['accessVlan', 'voiceVlan', 'nativeVlan'].forEach(function (field) {
+        var id = port[field];
+        if (id && !enriched[id]) {
+          enriched[id] = { id: id, name: 'VLAN' + id, ports: [] };
+        }
+      });
+    });
+    return enriched;
+  }
+
   function parseCdpNeighbors(text) {
-    var section = findSection(text, ['show cdp neighbors detail', 'show cdp neighbors']);
+    var section = extractCommandSection(text, ['show cdp neighbors detail', 'show cdp neighbors']);
     if (!section) {
       return {};
     }
@@ -338,7 +563,7 @@ var SwitchDraw = SwitchDraw || {};
   }
 
   function parseLldpNeighbors(text) {
-    var section = findSection(text, ['show lldp neighbors detail', 'show lldp neighbors']);
+    var section = extractCommandSection(text, ['show lldp neighbors detail', 'show lldp neighbors']);
     if (!section) {
       return {};
     }
@@ -391,13 +616,15 @@ var SwitchDraw = SwitchDraw || {};
       var n = neighbors[name] || {};
       var accessVlan = cfg.accessVlan || (cfg.mode !== 'trunk' && st.vlan && st.vlan !== 'trunk' ? st.vlan : '');
       var vlanName = accessVlan && vlans[accessVlan] ? vlans[accessVlan].name : '';
+      var adminStatus = cfg.adminStatus || (st.adminDown ? 'disabled' : 'enabled');
+      var linkStatus = st.status || 'unknown';
 
       ports.push({
         name: name,
         parts: parseInterfaceParts(name),
         description: cfg.description || st.description || '',
-        adminStatus: cfg.adminStatus || 'enabled',
-        linkStatus: st.status || 'unknown',
+        adminStatus: adminStatus,
+        linkStatus: linkStatus,
         mode: cfg.mode || (st.vlan === 'trunk' ? 'trunk' : 'access'),
         accessVlan: accessVlan,
         vlanName: vlanName,
@@ -436,19 +663,23 @@ var SwitchDraw = SwitchDraw || {};
     var text = chunk.text;
     var hostname = extractHostname(text, chunk.promptHost);
     var config = parseRunningConfig(text);
-    var status = parseInterfaceStatus(text);
+    var status = mergeInterfaceStatus(
+      parseInterfaceStatus(text),
+      parseIpInterfaceBrief(text)
+    );
     var vlans = parseVlanBrief(text);
     var neighbors = mergeNeighbors(parseCdpNeighbors(text), parseLldpNeighbors(text));
     var ports = mergePortData(config, status, vlans, neighbors);
+    vlans = enrichVlansFromPorts(vlans, ports);
 
     var physical = ports.filter(function (p) { return p.physical; });
     var counts = {
       total: physical.length,
       up: physical.filter(function (p) {
-        return p.adminStatus !== 'disabled' && p.linkStatus === 'connected';
+        return p.adminStatus !== 'disabled' && isLinkUp(p.linkStatus);
       }).length,
       down: physical.filter(function (p) {
-        return p.adminStatus !== 'disabled' && p.linkStatus !== 'connected';
+        return p.adminStatus !== 'disabled' && !isLinkUp(p.linkStatus);
       }).length,
       shutdown: physical.filter(function (p) {
         return p.adminStatus === 'disabled';
@@ -475,9 +706,12 @@ var SwitchDraw = SwitchDraw || {};
   SD.parseLog = parseLog;
   SD.cleanLog = cleanLog;
   SD.normalizeInterfaceName = normalizeInterfaceName;
+  SD.normalizeLinkStatus = normalizeLinkStatus;
+  SD.isLinkUp = isLinkUp;
   SD.parseInterfaceParts = parseInterfaceParts;
   SD.isPhysicalInterface = isPhysicalInterface;
   SD.compareInterfaces = compareInterfaces;
+  SD.extractCommandSection = extractCommandSection;
 })(SwitchDraw);
 
 (function (root, sd) {

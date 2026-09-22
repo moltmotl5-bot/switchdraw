@@ -12,11 +12,19 @@ require(path.join(root, 'js', 'workbook.js'));
 var SD = globalThis.SwitchDraw;
 
 var sampleLog = fs.readFileSync(path.join(root, 'fixtures', 'sample-cisco.log'), 'utf8');
+var ipBriefLog = fs.readFileSync(path.join(root, 'fixtures', 'sample-ip-brief.log'), 'utf8');
 
 test('cleanLog removes PuTTY noise', function () {
   var cleaned = SD.cleanLog('line1\x08\x08--More-- \nline2');
   assert.match(cleaned, /line1/);
   assert.doesNotMatch(cleaned, /--More--/);
+});
+
+test('normalizeLinkStatus maps up to connected', function () {
+  assert.equal(SD.normalizeLinkStatus('up', 'up'), 'connected');
+  assert.equal(SD.normalizeLinkStatus('connected'), 'connected');
+  assert.equal(SD.normalizeLinkStatus('connected: T'), 'connected');
+  assert.equal(SD.normalizeLinkStatus('notconnect'), 'notconnect');
 });
 
 test('normalizeInterfaceName expands Cisco abbreviations', function () {
@@ -49,6 +57,20 @@ test('parseLog extracts hostname, ports, vlans, and neighbors', function () {
   assert.equal(device.vlans['10'].name, 'FINANCE');
 });
 
+test('parseLog handles show ip interface brief with up status', function () {
+  var devices = SD.parseLog(ipBriefLog);
+  assert.equal(devices.length, 1);
+
+  var device = devices[0];
+  var gi101 = device.ports.find(function (p) { return p.name === 'Gi1/0/1'; });
+  assert.equal(gi101.linkStatus, 'connected');
+  assert.equal(gi101.accessVlan, '100');
+
+  assert.ok(Object.keys(device.vlans).length >= 3);
+  assert.equal(device.vlans['100'].name, 'OFFICE LAN');
+  assert.ok(device.counts.up >= 4);
+});
+
 test('buildFaceplateGroups splits odd and even ports', function () {
   var devices = SD.parseLog(sampleLog);
   var groups = SD.buildFaceplateGroups(devices[0].physicalPorts);
@@ -75,15 +97,13 @@ test('sanitizeCellValue removes illegal XML control characters', function () {
   assert.equal(cleaned, 'oktext');
 });
 
-test('buildWorkbook contains expected worksheets', async function () {
+test('buildWorkbook uses one Faceplate sheet per switch', async function () {
   var ExcelJS = require('exceljs');
-  var devices = SD.parseLog(sampleLog);
+  var devices = SD.parseLog(ipBriefLog);
   var buffer = await SD.buildWorkbookBuffer(devices[0]);
   var workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
 
   var names = workbook.worksheets.map(function (sheet) { return sheet.name; });
-  assert.ok(names.includes('Ports'));
-  assert.ok(names.includes('VLANs'));
-  assert.ok(names.some(function (name) { return name.indexOf('Gi1-0') !== -1; }));
+  assert.deepEqual(names, ['Faceplate', 'Ports', 'VLANs']);
 });

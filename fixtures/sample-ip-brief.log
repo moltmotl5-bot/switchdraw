@@ -1,0 +1,49 @@
+SW-ACCESS-01#show running-config
+!
+hostname SW-ACCESS-01
+!
+interface GigabitEthernet1/0/1
+ description USER-PC-01
+ switchport mode access
+ switchport access vlan 100
+!
+interface GigabitEthernet1/0/2
+ description USER-PC-02
+ switchport mode access
+ switchport access vlan 200
+!
+interface GigabitEthernet1/0/3
+ shutdown
+ switchport mode access
+ switchport access vlan 100
+!
+interface GigabitEthernet1/0/47
+ switchport mode trunk
+ switchport trunk allowed vlan 100,200
+!
+interface GigabitEthernet2/0/1
+ description STACK-PORT
+ switchport mode access
+ switchport access vlan 300
+!
+interface TenGigabitEthernet1/1/1
+ switchport mode trunk
+!
+end
+SW-ACCESS-01#show ip interface brief
+Interface              IP-Address      OK? Method Status                Protocol
+Vlan1                  unassigned      YES NVRAM  up                    up
+Gi1/0/1                unassigned      YES unset  up                    up
+Gi1/0/2                unassigned      YES unset  up                    up
+Gi1/0/3                unassigned      YES unset  administratively down down
+Gi1/0/47               unassigned      YES unset  up                    up
+Gi2/0/1                unassigned      YES unset  up                    up
+Te1/1/1                unassigned      YES unset  up                    up
+SW-ACCESS-01#show vlan brief
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+1    default                          active    Gi1/0/47, Te1/1/1
+100  OFFICE LAN                       active    Gi1/0/1, Gi1/0/3
+200  GUEST WIFI                       active    Gi1/0/2
+300  IoT DEVICES                      active    Gi2/0/1

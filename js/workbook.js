@@ -105,16 +105,15 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     sheet.getRow(rowIndex).height = 48;
   }
 
-  function buildFaceplateSheet(workbook, group, device) {
-    var sheet = workbook.addWorksheet(group.sheetName, {
-      views: [{ showGridLines: false }]
-    });
+  function writeModuleBlock(sheet, group, startRow) {
     var colCount = Math.max(group.oddRow.length, group.evenRow.length, 1);
     for (var c = 1; c <= colCount; c++) {
-      sheet.getColumn(c).width = 14;
+      if (!sheet.getColumn(c).width || sheet.getColumn(c).width < 14) {
+        sheet.getColumn(c).width = 14;
+      }
     }
 
-    var row = writeLegend(sheet, device, 1);
+    var row = startRow;
     styleHeaderCell(sheet.getCell('A' + row), group.moduleLabel + '（奇數埠 · 上排）');
     row += 1;
     writePortRow(sheet, row, group.oddRow);
@@ -122,6 +121,21 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     styleHeaderCell(sheet.getCell('A' + row), group.moduleLabel + '（偶數埠 · 下排）');
     row += 1;
     writePortRow(sheet, row, group.evenRow);
+    return row + 1;
+  }
+
+  function buildFaceplateSheet(workbook, device) {
+    var groups = SD.buildFaceplateGroups(device.physicalPorts);
+    var sheet = workbook.addWorksheet('Faceplate', {
+      views: [{ showGridLines: false }]
+    });
+    var row = writeLegend(sheet, device, 1);
+    groups.forEach(function (group, index) {
+      if (index > 0) {
+        row += 1;
+      }
+      row = writeModuleBlock(sheet, group, row);
+    });
   }
 
   function buildPortsSheet(workbook, device) {
@@ -194,9 +208,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     workbook.created = new Date();
     workbook.title = sanitizeCellValue(device.hostname + ' Switchport');
 
-    SD.buildFaceplateGroups(device.physicalPorts).forEach(function (group) {
-      buildFaceplateSheet(workbook, group, device);
-    });
+    buildFaceplateSheet(workbook, device);
     buildPortsSheet(workbook, device);
     buildVlansSheet(workbook, device);
 
