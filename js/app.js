@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.1.4';
+  var APP_VERSION = '1.1.5';
   var dropzone = document.getElementById('dropzone');
   var fileInput = document.getElementById('file-input');
   var summaryEl = document.getElementById('summary');
@@ -56,14 +56,19 @@
       .replace(/"/g, '&quot;');
   }
 
-  function renderPortBox(port) {
-    var style = SwitchDraw.portStyle(port);
+  function renderPortBox(port, registry) {
+    var style = SwitchDraw.portStyle(port, registry);
     var label = SwitchDraw.portLabel(port);
+    var status = SwitchDraw.portStatusDisplay(port);
     return [
-      '<div class="port-box" style="background:' + style.fill + ';color:' + style.text + '">',
+      '<div class="port-box">',
+      '<div class="port-vlan-cell" style="background:' + style.fill + '">',
       '<div class="port-name">' + escapeHtml(label.title) + '</div>',
       '<div class="port-vlan">' + escapeHtml(label.vlan) + '</div>',
-      '<div class="port-detail">' + escapeHtml(label.detail) + '</div>',
+      '</div>',
+      '<div class="port-status-cell" style="background:' + status.fill + ';color:' + status.textColor + '">',
+      escapeHtml(status.text),
+      '</div>',
       '</div>'
     ].join('');
   }
@@ -75,15 +80,16 @@
     }
 
     previewEl.innerHTML = devices.map(function (device) {
+      var registry = device.colorRegistry || SwitchDraw.createColorRegistry(device);
       var groups = SwitchDraw.buildFaceplateGroups(device.physicalPorts);
       var groupHtml = groups.map(function (group) {
         return [
           '<section class="module-block">',
           '<h3>' + escapeHtml(group.moduleLabel) + '</h3>',
           '<div class="row-label">奇數埠（上排）</div>',
-          '<div class="port-row">' + group.oddRow.map(renderPortBox).join('') + '</div>',
+          '<div class="port-row">' + group.oddRow.map(function (p) { return renderPortBox(p, registry); }).join('') + '</div>',
           '<div class="row-label">偶數埠（下排）</div>',
-          '<div class="port-row">' + group.evenRow.map(renderPortBox).join('') + '</div>',
+          '<div class="port-row">' + group.evenRow.map(function (p) { return renderPortBox(p, registry); }).join('') + '</div>',
           '</section>'
         ].join('');
       }).join('');
@@ -98,10 +104,12 @@
   }
 
   function handleParsedDevices(devices) {
-    currentDevices = devices;
-    renderSummary(devices);
-    renderPreview(devices);
-    downloadBtn.disabled = !devices.length;
+    currentDevices = devices.map(function (device) {
+      return SwitchDraw.enrichDevice(device);
+    });
+    renderSummary(currentDevices);
+    renderPreview(currentDevices);
+    downloadBtn.disabled = !currentDevices.length;
     if (devices.length) {
       showStatus('就緒。輸出格式：.xlsx（SwitchDraw v' + APP_VERSION + '）');
     }

@@ -8,48 +8,114 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     '#4E79A7', '#F28E2B', '#E15759', '#76B7B2', '#59A14F',
     '#EDC948', '#B07AA1', '#FF9DA7', '#9C755F', '#BAB0AC',
     '#86BCB6', '#D37295', '#FABFD2', '#8CD17D', '#B6992D',
-    '#499894', '#E15759', '#79706E', '#D4A6C8', '#FFBE7D'
+    '#499894', '#79706E', '#D4A6C8', '#FFBE7D', '#AEC7E8'
   ];
 
   var TRUNK_COLOR = '#2C3E50';
   var SHUTDOWN_COLOR = '#BDC3C7';
   var ERR_COLOR = '#C0392B';
   var ROUTED_COLOR = '#8E44AD';
+  var STATUS_CONNECTED_FILL = '#D5F5E3';
+  var STATUS_CONNECTED_TEXT = '#1E8449';
+  var STATUS_DOWN_FILL = '#FCF3CF';
+  var STATUS_DOWN_TEXT = '#7D6608';
+  var STATUS_UNKNOWN_FILL = '#F2F3F4';
+  var STATUS_UNKNOWN_TEXT = '#566573';
 
-  function vlanColor(vlanId) {
-    var id = parseInt(vlanId, 10);
-    if (!id || isNaN(id)) {
+  function createColorRegistry(device) {
+    var vlanIds = {};
+    Object.keys(device.vlans || {}).forEach(function (id) {
+      vlanIds[id] = true;
+    });
+    (device.physicalPorts || []).forEach(function (port) {
+      if (port.accessVlan) {
+        vlanIds[port.accessVlan] = true;
+      }
+    });
+
+    var sorted = Object.keys(vlanIds).sort(function (a, b) {
+      return parseInt(a, 10) - parseInt(b, 10);
+    });
+
+    var vlan = {};
+    sorted.forEach(function (id, index) {
+      vlan[id] = VLAN_PALETTE[index % VLAN_PALETTE.length];
+    });
+
+    return {
+      vlan: vlan,
+      special: {
+        trunk: TRUNK_COLOR,
+        shutdown: SHUTDOWN_COLOR,
+        errDisabled: ERR_COLOR,
+        routed: ROUTED_COLOR,
+        unknown: '#D5D8DC'
+      }
+    };
+  }
+
+  function enrichDevice(device) {
+    device.colorRegistry = createColorRegistry(device);
+    return device;
+  }
+
+  function getVlanColor(registry, vlanId) {
+    if (!registry || !vlanId) {
       return '#D5D8DC';
     }
-    return VLAN_PALETTE[id % VLAN_PALETTE.length];
+    return registry.vlan[vlanId] || registry.special.unknown;
   }
 
-  function lighten(hex, amount) {
-    var num = parseInt(hex.slice(1), 16);
-    var r = Math.min(255, ((num >> 16) & 0xff) + amount);
-    var g = Math.min(255, ((num >> 8) & 0xff) + amount);
-    var b = Math.min(255, (num & 0xff) + amount);
-    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
-  }
-
-  function portStyle(port) {
+  function portVlanColor(port, registry) {
     if (port.adminStatus === 'disabled') {
-      return { fill: SHUTDOWN_COLOR, text: '#2C3E50', label: '關閉' };
-    }
-    if (port.linkStatus === 'err-disabled') {
-      return { fill: ERR_COLOR, text: '#FFFFFF', label: 'ERR' };
+      return registry.special.shutdown;
     }
     if (port.mode === 'trunk') {
-      return { fill: TRUNK_COLOR, text: '#FFFFFF', label: 'TRUNK' };
+      return registry.special.trunk;
     }
     if (port.mode === 'routed') {
-      return { fill: ROUTED_COLOR, text: '#FFFFFF', label: 'L3' };
+      return registry.special.routed;
     }
-    var base = vlanColor(port.accessVlan);
-    if (!SD.isLinkUp(port.linkStatus)) {
-      base = lighten(base, 80);
+    return getVlanColor(registry, port.accessVlan);
+  }
+
+  function portStatusDisplay(port) {
+    if (port.adminStatus === 'disabled') {
+      return { text: 'shutdown', fill: SHUTDOWN_COLOR, textColor: '#2C3E50' };
     }
-    return { fill: base, text: '#1A1A1A', label: port.accessVlan || '-' };
+    if (port.linkStatus === 'err-disabled') {
+      return { text: 'err-disable', fill: ERR_COLOR, textColor: '#FFFFFF' };
+    }
+    if (port.mode === 'trunk') {
+      return { text: 'trunk', fill: TRUNK_COLOR, textColor: '#FFFFFF' };
+    }
+    if (port.mode === 'routed') {
+      return { text: 'routed', fill: ROUTED_COLOR, textColor: '#FFFFFF' };
+    }
+    if (SD.isLinkUp(port.linkStatus)) {
+      return { text: 'connected', fill: STATUS_CONNECTED_FILL, textColor: STATUS_CONNECTED_TEXT };
+    }
+    if (port.linkStatus === 'notconnect') {
+      return { text: 'notconnect', fill: STATUS_DOWN_FILL, textColor: STATUS_DOWN_TEXT };
+    }
+    return {
+      text: port.linkStatus || 'unknown',
+      fill: STATUS_UNKNOWN_FILL,
+      textColor: STATUS_UNKNOWN_TEXT
+    };
+  }
+
+  function portStyle(port, registry) {
+    var reg = registry || { vlan: {}, special: { unknown: '#D5D8DC', trunk: TRUNK_COLOR, shutdown: SHUTDOWN_COLOR } };
+    var fill = portVlanColor(port, reg);
+    var status = portStatusDisplay(port);
+    return {
+      fill: fill,
+      text: status.textColor,
+      label: port.mode === 'trunk' ? 'TRUNK' : (port.accessVlan || '-'),
+      statusFill: status.fill,
+      statusText: status.textColor
+    };
   }
 
   function portLabel(port) {
@@ -63,7 +129,8 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     return {
       title: shortName,
       vlan: line2,
-      detail: line3
+      detail: line3,
+      status: portStatusDisplay(port).text
     };
   }
 
@@ -110,6 +177,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
   }
 
   function buildVlanSummary(device) {
+    var registry = device.colorRegistry || createColorRegistry(device);
     var counts = {};
     device.physicalPorts.forEach(function (port) {
       if (port.mode === 'trunk') {
@@ -121,13 +189,13 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
       }
     });
 
-    var rows = Object.keys(device.vlans).sort(function (a, b) {
+    var rows = Object.keys(registry.vlan).sort(function (a, b) {
       return parseInt(a, 10) - parseInt(b, 10);
     }).map(function (id) {
       return {
         id: id,
-        name: device.vlans[id].name,
-        color: vlanColor(id),
+        name: device.vlans[id] ? device.vlans[id].name : ('VLAN' + id),
+        color: registry.vlan[id],
         portCount: counts[id] || 0
       };
     });
@@ -136,7 +204,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
       rows.push({
         id: 'trunk',
         name: 'Trunk',
-        color: TRUNK_COLOR,
+        color: registry.special.trunk,
         portCount: counts.trunk
       });
     }
@@ -144,7 +212,11 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     return rows;
   }
 
-  SD.vlanColor = vlanColor;
+  SD.createColorRegistry = createColorRegistry;
+  SD.enrichDevice = enrichDevice;
+  SD.getVlanColor = getVlanColor;
+  SD.portVlanColor = portVlanColor;
+  SD.portStatusDisplay = portStatusDisplay;
   SD.portStyle = portStyle;
   SD.portLabel = portLabel;
   SD.buildFaceplateGroups = buildFaceplateGroups;

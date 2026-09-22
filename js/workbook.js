@@ -94,37 +94,45 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     return row + 2;
   }
 
-  function writePortRow(sheet, rowIndex, ports) {
+  function writePortRow(sheet, rowIndex, ports, registry) {
     ports.forEach(function (port, index) {
-      var cell = sheet.getCell(rowIndex, index + 1);
-      var style = SD.portStyle(port);
+      var colVlan = index * 2 + 1;
+      var colStatus = index * 2 + 2;
+      var vlanCell = sheet.getCell(rowIndex, colVlan);
+      var statusCell = sheet.getCell(rowIndex, colStatus);
       var label = SD.portLabel(port);
-      setCellValue(cell, label.title + '\n' + label.vlan + '\n' + label.detail);
-      fillCell(cell, style.fill, { textColor: style.text });
+      var vlanFill = SD.portVlanColor(port, registry);
+      var status = SD.portStatusDisplay(port);
+
+      setCellValue(vlanCell, label.title + '\n' + label.vlan);
+      fillCell(vlanCell, vlanFill);
+
+      setCellValue(statusCell, status.text);
+      fillCell(statusCell, status.fill, { textColor: status.textColor });
     });
-    sheet.getRow(rowIndex).height = 48;
+    sheet.getRow(rowIndex).height = 42;
   }
 
-  function writeModuleBlock(sheet, group, startRow) {
-    var colCount = Math.max(group.oddRow.length, group.evenRow.length, 1);
+  function writeModuleBlock(sheet, group, startRow, registry) {
+    var portCount = Math.max(group.oddRow.length, group.evenRow.length, 1);
+    var colCount = portCount * 2;
     for (var c = 1; c <= colCount; c++) {
-      if (!sheet.getColumn(c).width || sheet.getColumn(c).width < 14) {
-        sheet.getColumn(c).width = 14;
-      }
+      sheet.getColumn(c).width = c % 2 === 1 ? 11 : 9;
     }
 
     var row = startRow;
     styleHeaderCell(sheet.getCell('A' + row), group.moduleLabel + '（奇數埠 · 上排）');
     row += 1;
-    writePortRow(sheet, row, group.oddRow);
+    writePortRow(sheet, row, group.oddRow, registry);
     row += 1;
     styleHeaderCell(sheet.getCell('A' + row), group.moduleLabel + '（偶數埠 · 下排）');
     row += 1;
-    writePortRow(sheet, row, group.evenRow);
+    writePortRow(sheet, row, group.evenRow, registry);
     return row + 1;
   }
 
   function buildFaceplateSheet(workbook, device) {
+    var registry = device.colorRegistry || SD.createColorRegistry(device);
     var groups = SD.buildFaceplateGroups(device.physicalPorts);
     var sheet = workbook.addWorksheet('Faceplate', {
       views: [{ showGridLines: false }]
@@ -134,7 +142,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
       if (index > 0) {
         row += 1;
       }
-      row = writeModuleBlock(sheet, group, row);
+      row = writeModuleBlock(sheet, group, row, registry);
     });
   }
 
@@ -203,6 +211,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
 
   function buildWorkbook(device) {
     var Excel = getExcelJS();
+    SD.enrichDevice(device);
     var workbook = new Excel.Workbook();
     workbook.creator = 'SwitchDraw';
     workbook.created = new Date();

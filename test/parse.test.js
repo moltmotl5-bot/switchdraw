@@ -130,6 +130,23 @@ test('parseLog handles abbreviated Cisco commands (sh int status, sh vlan br)', 
   assert.ok(Object.keys(devices[0].vlans).length >= 3);
 });
 
+test('color registry assigns stable vlan colors', function () {
+  var devices = SD.parseLog(c3850Log).map(function (d) { return SD.enrichDevice(d); });
+  var registry = devices[0].colorRegistry;
+  assert.equal(SD.getVlanColor(registry, '788'), registry.vlan['788']);
+  assert.equal(SD.getVlanColor(registry, '788'), SD.getVlanColor(registry, '788'));
+  assert.notEqual(registry.vlan['788'], registry.vlan['1140']);
+});
+
+test('portStatusDisplay separates status from vlan color', function () {
+  var devices = SD.parseLog(c3850Log).map(function (d) { return SD.enrichDevice(d); });
+  var port = devices[0].ports.find(function (p) { return p.name === 'Gi1/0/4'; });
+  var vlanColor = SD.portVlanColor(port, devices[0].colorRegistry);
+  var status = SD.portStatusDisplay(port);
+  assert.equal(status.text, 'connected');
+  assert.notEqual(vlanColor, status.fill);
+});
+
 test('buildWorkbook uses one Faceplate sheet per switch', async function () {
   var ExcelJS = require('exceljs');
   var devices = SD.parseLog(ipBriefLog);

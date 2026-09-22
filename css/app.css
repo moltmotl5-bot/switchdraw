@@ -159,20 +159,37 @@ button:disabled {
 }
 
 .port-box {
-  width: 108px;
-  min-height: 72px;
+  display: flex;
+  width: 128px;
+  min-height: 56px;
   border-radius: 8px;
-  padding: 8px;
+  overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
   font-size: 0.78rem;
+}
+
+.port-vlan-cell {
+  flex: 1.2;
+  padding: 6px;
+  color: #1a1a1a;
+}
+
+.port-status-cell {
+  flex: 0.8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+  font-weight: 600;
+  text-align: center;
+  word-break: break-word;
 }
 
 .port-name {
   font-weight: 700;
 }
 
-.port-vlan,
-.port-detail {
+.port-vlan {
   opacity: 0.92;
   word-break: break-all;
 }

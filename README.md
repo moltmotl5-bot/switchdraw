@@ -1,6 +1,6 @@
 # SwitchDraw
 
-**版本 1.1.4**
+**版本 1.1.5**
 
 輕量的 Cisco IOS / IOS-XE 交換器埠位圖產生器。上傳 PuTTY 擷取的 `*.log`，在瀏覽器本機解析後下載 Excel 前面板圖（標準 `.xlsx`，相容 Microsoft 365 Excel）。
 
@@ -8,7 +8,8 @@
 
 - 解析 `show running-config`、`show interfaces status`、`show interfaces description`、`show ip interface brief`、`show vlan brief`、`show cdp/lldp neighbors`
 - 依堆疊成員產生前面板圖（奇數埠上排、偶數埠下排）
-- 依 VLAN / Trunk / Shutdown 狀態上色
+- 中央 VLAN 色碼表：同一 VLAN 在圖例、前面板、VLANs 工作表使用相同顏色
+- Excel 前面板每埠分兩格：VLAN（色碼）＋ Port Status（連線狀態）
 - 附 `Ports` 與 `VLANs` 明細工作表
 
 ## Windows 本機測試（v1.1.4）
