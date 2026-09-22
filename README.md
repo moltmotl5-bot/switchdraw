@@ -1,6 +1,6 @@
 # SwitchDraw
 
-**版本 1.2.0**
+**版本 1.2.1**
 
 輕量的 Cisco IOS / IOS-XE 交換器埠位圖產生器。上傳 PuTTY 擷取的 `*.log`，在瀏覽器本機解析後下載 Excel 前面板圖（標準 `.xlsx`，相容 Microsoft 365 Excel）。
 
@@ -14,24 +14,77 @@
 - **本地儲存**：解析結果以 JSON 寫入 `data/switches/`
 - **側邊欄導覽**與 **歷史記錄頁**（[`history.html`](history.html)）
 
-## Windows 本機測試（v1.2.0）
+## Docker 部署（建議）
 
-1. 取得程式碼：
-   ```powershell
-   git clone https://github.com/moltmotl5-bot/switchdraw.git
-   cd switchdraw
-   git pull
-   npm install
-   npm start
-   ```
-2. 用 **Chrome** 或 **Edge** 開啟 `http://localhost:8080/index.html`。**請按 Ctrl+F5 強制重新整理**。
-3. 確認側邊欄顯示 **SwitchDraw v1.2.0**，含「上傳解析」與「歷史記錄」。
+JSON 解析結果儲存在**主機**的 `./data/switches/`，透過 volume 掛載進容器；容器重建或更新後資料仍保留。
 
-支援 Cisco 縮寫指令（`sh int status`、`sh vlan br`、`sh ip int br`、`sh cdp nei det` 等）。
-4. 先用 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試；解析後應在 `data/switches/` 產生 JSON，並可在「歷史記錄」查看。
-5. 再用 PuTTY 真實 `.log` 測試。
+### 需求
 
-若只需靜態預覽（不寫入 JSON），仍可直接開啟 `index.html`；但本地儲存與歷史記錄需 `npm start`。
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)（Windows / macOS）或 Docker Engine（Linux）
+- Docker Compose v2
+
+### 啟動
+
+```bash
+git clone https://github.com/moltmotl5-bot/switchdraw.git
+cd switchdraw
+git pull
+
+mkdir -p data/switches
+docker compose up -d --build
+```
+
+瀏覽器開啟 `http://localhost:8080/index.html`。
+
+### 常用指令
+
+```bash
+docker compose logs -f      # 查看日誌
+docker compose down         # 停止
+docker compose up -d --build  # 更新後重建
+```
+
+自訂埠號（例：9090）：
+
+```bash
+PORT=9090 docker compose up -d --build
+```
+
+### JSON 儲存位置
+
+| 位置 | 說明 |
+|------|------|
+| 主機 `./data/switches/*.json` | 實際資料（持久化） |
+| 容器 `/data/switches/` | 掛載點（`SWITCHDRAW_STORE_DIR`） |
+
+備份時直接複製主機上的 `data/switches/` 即可。
+
+### Windows（PowerShell）
+
+```powershell
+git clone https://github.com/moltmotl5-bot/switchdraw.git
+cd switchdraw
+git pull
+
+New-Item -ItemType Directory -Force -Path data\switches
+docker compose up -d --build
+```
+
+用 **Chrome** 或 **Edge** 開啟 `http://localhost:8080/index.html`（**Ctrl+F5** 清除快取）。
+
+1. 確認側邊欄顯示 **SwitchDraw v1.2.1**
+2. 用 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試；主機 `data/switches/` 應出現 JSON
+3. 在「歷史記錄」頁確認舊資料
+
+## 本機開發（非 Docker）
+
+```bash
+npm install
+npm start
+# http://localhost:8080
+```
+
+若只需靜態預覽（不寫入 JSON），可直接開啟 `index.html`。
 
 ## PuTTY 日誌指令（依序執行）
 
@@ -51,12 +104,12 @@ PuTTY 設定：**Session → Logging → All session output**，並勾選 **Omit
 
 ## 使用方式
 
-1. 執行 `npm start`，開啟 `http://localhost:8080/index.html`。
+1. 以 Docker 啟動（見上方）或 `npm start`，開啟 `http://localhost:8080/index.html`。
 2. 拖放或選擇 PuTTY 日誌（`.log` / `.txt`）。
-3. 預覽前面板後，點擊「下載 Excel 埠位圖」；解析結果會自動儲存至 `data/switches/*.json`。
+3. 預覽前面板後，點擊「下載 Excel 埠位圖」；解析結果會自動儲存至主機 `data/switches/*.json`。
 4. 在側邊欄進入「歷史記錄」，查看、下載或刪除舊記錄。
 
-解析與 Excel 產生在瀏覽器完成；JSON 儲存由本機 Node 伺服器寫入專案資料夾，不會上傳至外部。Excel 使用內附 [ExcelJS](https://github.com/exceljs/exceljs)（`vendor/exceljs.bare.min.js`）。
+解析與 Excel 產生在瀏覽器完成；JSON 由伺服器寫入主機掛載目錄，不會上傳至外部。Excel 使用內附 [ExcelJS](https://github.com/exceljs/exceljs)（`vendor/exceljs.bare.min.js`）。
 
 ## 安全性（Cortex XDR / 防毒軟體）
 
@@ -77,8 +130,10 @@ npm test
 
 - [`index.html`](index.html) — 上傳解析頁
 - [`history.html`](history.html) — 歷史記錄頁
+- [`Dockerfile`](Dockerfile) — 容器映像
+- [`docker-compose.yml`](docker-compose.yml) — 部署設定（主機 volume 掛載）
 - [`server.js`](server.js) — 靜態檔案 + JSON 儲存 API
-- [`data/switches/`](data/switches/) — 解析結果 JSON（`.gitignore` 排除實際資料）
+- [`data/switches/`](data/switches/) — 主機持久化 JSON（`.gitignore` 排除實際資料）
 - [`js/parse.js`](js/parse.js) — Cisco 日誌解析
 - [`js/faceplate.js`](js/faceplate.js) — 前面板分組與配色
 - [`js/workbook.js`](js/workbook.js) — ExcelJS 活頁簿產生

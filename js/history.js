@@ -152,7 +152,7 @@
   function loadRecords() {
     showError('');
     if (!SwitchDraw.store.isAvailable()) {
-      listEl.innerHTML = '<p class="muted">請執行 <code>npm start</code> 後以 http://localhost:8080/history.html 開啟此頁。</p>';
+      listEl.innerHTML = '<p class="muted">請執行 <code>docker compose up -d</code> 或 <code>npm start</code> 後以 http://localhost:8080/history.html 開啟此頁。</p>';
       renderEmptyDetail('本地儲存需透過 SwitchDraw 伺服器存取。');
       return Promise.resolve();
     }

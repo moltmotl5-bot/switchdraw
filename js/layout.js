@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.2.0';
+  var APP_VERSION = '1.2.1';
 
   function currentPage() {
     var path = (location.pathname || '').split('/').pop() || 'index.html';
@@ -33,7 +33,7 @@
       '</a>',
       '</nav>',
       '<div class="sidebar-foot">',
-      '<p class="muted">解析結果會儲存至 <code>data/switches/</code></p>',
+      '<p class="muted">JSON 儲存於主機 <code>data/switches/</code>（Docker volume）</p>',
       '</div>',
       '</aside>'
     ].join('');

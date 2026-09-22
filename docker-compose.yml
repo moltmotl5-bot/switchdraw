@@ -1,0 +1,14 @@
+services:
+  switchdraw:
+    build: .
+    image: switchdraw:1.2.1
+    container_name: switchdraw
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      PORT: 8080
+      SWITCHDRAW_STORE_DIR: /data/switches
+    volumes:
+      # JSON 儲存在主機，容器重建後資料仍保留
+      - ./data/switches:/data/switches
+    restart: unless-stopped

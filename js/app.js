@@ -2,7 +2,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.2.0';
+  var APP_VERSION = '1.2.1';
   var dropzone = document.getElementById('dropzone');
   var fileInput = document.getElementById('file-input');
   var summaryEl = document.getElementById('summary');
@@ -33,10 +33,10 @@
       return;
     }
     if (SwitchDraw.store.isAvailable()) {
-      storeNoticeEl.textContent = '解析成功後會自動儲存至專案 data/switches/ 資料夾。';
+      storeNoticeEl.textContent = '解析成功後會自動儲存至主機 data/switches/（Docker volume 掛載目錄）。';
       storeNoticeEl.classList.remove('warn');
     } else {
-      storeNoticeEl.textContent = '本地儲存需執行 npm start 後以 http://localhost:8080 開啟（file:// 無法寫入專案資料夾）。';
+      storeNoticeEl.textContent = '本地儲存需 docker compose up 或 npm start 後以 http://localhost:8080 開啟（file:// 無法寫入 JSON）。';
       storeNoticeEl.classList.add('warn');
     }
   }
