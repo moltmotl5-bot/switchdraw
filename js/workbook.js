@@ -1,247 +1,213 @@
-/* global SwitchDraw */
+/* global SwitchDraw, ExcelJS */
 var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchDraw || {};
 
 (function (SD) {
   'use strict';
 
-  function escapeXml(value) {
-    return String(value == null ? '' : value)
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
-  }
-
-  function styleIdForColor(color) {
-    return 'c' + color.replace('#', '').toUpperCase();
-  }
-
-  function buildStyles(device) {
-    var styles = [
-      '<Style ss:ID="Default" ss:Name="Normal">' +
-        '<Alignment ss:Vertical="Center" ss:WrapText="1"/>' +
-        '<Font ss:FontName="Calibri" x:Family="Swiss" ss:Size="10"/>' +
-      '</Style>',
-      '<Style ss:ID="Header">' +
-        '<Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>' +
-        '<Font ss:Bold="1" ss:FontName="Calibri" ss:Size="10"/>' +
-        '<Interior ss:Color="#ECF0F1" ss:Pattern="Solid"/>' +
-        '<Borders>' +
-          '<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-        '</Borders>' +
-      '</Style>',
-      '<Style ss:ID="Title">' +
-        '<Font ss:Bold="1" ss:Size="14" ss:FontName="Calibri"/>' +
-      '</Style>',
-      '<Style ss:ID="Legend">' +
-        '<Alignment ss:Horizontal="Center" ss:Vertical="Center"/>' +
-        '<Font ss:Size="9" ss:FontName="Calibri"/>' +
-        '<Borders>' +
-          '<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-          '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-          '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-          '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-        '</Borders>' +
-      '</Style>'
-    ];
-
-    var colors = {};
-    SD.buildVlanSummary(device).forEach(function (row) {
-      colors[row.color] = true;
-    });
-    device.physicalPorts.forEach(function (port) {
-      colors[SD.portStyle(port).fill] = true;
-    });
-
-    Object.keys(colors).forEach(function (color) {
-      var id = styleIdForColor(color);
-      styles.push(
-        '<Style ss:ID="' + id + '">' +
-          '<Alignment ss:Horizontal="Center" ss:Vertical="Center" ss:WrapText="1"/>' +
-          '<Font ss:FontName="Calibri" ss:Size="9"/>' +
-          '<Interior ss:Color="' + color + '" ss:Pattern="Solid"/>' +
-          '<Borders>' +
-            '<Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-            '<Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-            '<Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-            '<Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>' +
-          '</Borders>' +
-        '</Style>'
-      );
-    });
-
-    return styles.join('\n');
-  }
-
-  function cell(value, styleId, type) {
-    var dataType = type || (typeof value === 'number' ? 'Number' : 'String');
-    return '<Cell ss:StyleID="' + escapeXml(styleId) + '"><Data ss:Type="' + dataType + '">' +
-      escapeXml(value) + '</Data></Cell>';
-  }
-
-  function row(cells, height) {
-    var heightAttr = height ? ' ss:Height="' + height + '"' : '';
-    return '<Row' + heightAttr + '>' + cells.join('') + '</Row>';
-  }
-
-  function columns(count, width) {
-    var parts = [];
-    for (var i = 0; i < count; i++) {
-      parts.push('<Column ss:Width="' + (width || 72) + '"/>');
+  function getExcelJS() {
+    if (typeof ExcelJS !== 'undefined') {
+      return ExcelJS;
     }
-    return parts.join('');
+    if (typeof require !== 'undefined') {
+      return require('exceljs');
+    }
+    throw new Error('ExcelJS 未載入');
   }
 
-  function buildLegendRows(device) {
-    var rows = [];
-    rows.push(row([cell(device.hostname + ' 前面板', 'Title')]));
-    rows.push(row([
-      cell('總埠數: ' + device.counts.total, 'Default'),
-      cell('Up: ' + device.counts.up, 'Default'),
-      cell('Down: ' + device.counts.down, 'Default'),
-      cell('Shutdown: ' + device.counts.shutdown, 'Default')
-    ]));
-    rows.push(row([cell('VLAN 圖例', 'Header')]));
+  function hexToArgb(hex) {
+    return 'FF' + String(hex || '#FFFFFF').replace('#', '').toUpperCase();
+  }
+
+  function applyBorder(cell) {
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF999999' } },
+      left: { style: 'thin', color: { argb: 'FF999999' } },
+      bottom: { style: 'thin', color: { argb: 'FF999999' } },
+      right: { style: 'thin', color: { argb: 'FF999999' } }
+    };
+  }
+
+  function fillCell(cell, hexColor, options) {
+    var opts = options || {};
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: hexToArgb(hexColor) }
+    };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: 'center',
+      wrapText: true
+    };
+    cell.font = {
+      name: 'Calibri',
+      size: opts.fontSize || 9,
+      bold: !!opts.bold,
+      color: { argb: hexToArgb(opts.textColor || '#1A1A1A') }
+    };
+    applyBorder(cell);
+  }
+
+  function styleHeaderCell(cell, value) {
+    cell.value = value;
+    fillCell(cell, '#ECF0F1', { bold: true, fontSize: 10 });
+  }
+
+  function writeLegend(sheet, device, startRow) {
+    var row = startRow;
+    var title = sheet.getCell('A' + row);
+    title.value = device.hostname + ' 前面板';
+    title.font = { name: 'Calibri', size: 14, bold: true };
+    row += 1;
+
+    sheet.getCell('A' + row).value = '總埠數: ' + device.counts.total;
+    sheet.getCell('B' + row).value = 'Up: ' + device.counts.up;
+    sheet.getCell('C' + row).value = 'Down: ' + device.counts.down;
+    sheet.getCell('D' + row).value = 'Shutdown: ' + device.counts.shutdown;
+    row += 1;
+
+    styleHeaderCell(sheet.getCell('A' + row), 'VLAN 圖例');
+    row += 1;
 
     var legend = SD.buildVlanSummary(device);
-    var legendCells = legend.map(function (item) {
+    legend.forEach(function (item, index) {
+      var cell = sheet.getCell(row, index + 1);
       var label = item.id === 'trunk' ? 'TRUNK' : ('VLAN ' + item.id + ' ' + item.name);
-      return cell(label + ' (' + item.portCount + ')', styleIdForColor(item.color));
+      cell.value = label + ' (' + item.portCount + ')';
+      fillCell(cell, item.color);
     });
-    if (legendCells.length) {
-      rows.push(row(legendCells));
-    }
-    rows.push(row([cell('', 'Default')]));
-    return rows;
+
+    return row + 2;
   }
 
-  function portCell(port) {
-    var style = SD.portStyle(port);
-    var label = SD.portLabel(port);
-    var text = label.title + '\n' + label.vlan + '\n' + label.detail;
-    return cell(text, styleIdForColor(style.fill));
+  function writePortRow(sheet, rowIndex, ports) {
+    ports.forEach(function (port, index) {
+      var cell = sheet.getCell(rowIndex, index + 1);
+      var style = SD.portStyle(port);
+      var label = SD.portLabel(port);
+      cell.value = label.title + '\n' + label.vlan + '\n' + label.detail;
+      fillCell(cell, style.fill, { textColor: style.text });
+    });
+    sheet.getRow(rowIndex).height = 48;
   }
 
-  function buildFaceplateSheet(group, device) {
-    var parts = ['<Worksheet ss:Name="' + escapeXml(group.sheetName) + '">', '<Table>'];
+  function buildFaceplateSheet(workbook, group, device) {
+    var sheet = workbook.addWorksheet(group.sheetName, {
+      views: [{ showGridLines: false }]
+    });
     var colCount = Math.max(group.oddRow.length, group.evenRow.length, 1);
-    parts.push(columns(colCount, 78));
-    parts.push(buildLegendRows(device).join(''));
-    parts.push(row([cell(group.moduleLabel + '（奇數埠 · 上排）', 'Header')]));
-    parts.push(row(group.oddRow.map(portCell), 48));
-    parts.push(row([cell(group.moduleLabel + '（偶數埠 · 下排）', 'Header')]));
-    parts.push(row(group.evenRow.map(portCell), 48));
-    parts.push('</Table></Worksheet>');
-    return parts.join('\n');
+    for (var c = 1; c <= colCount; c++) {
+      sheet.getColumn(c).width = 14;
+    }
+
+    var row = writeLegend(sheet, device, 1);
+    styleHeaderCell(sheet.getCell('A' + row), group.moduleLabel + '（奇數埠 · 上排）');
+    row += 1;
+    writePortRow(sheet, row, group.oddRow);
+    row += 1;
+    styleHeaderCell(sheet.getCell('A' + row), group.moduleLabel + '（偶數埠 · 下排）');
+    row += 1;
+    writePortRow(sheet, row, group.evenRow);
   }
 
-  function buildPortsSheet(device) {
+  function buildPortsSheet(workbook, device) {
     var headers = [
       '主機', '模組', '介面', '描述', '管理狀態', '連線狀態', '模式',
       'Access VLAN', 'VLAN 名稱', 'Voice VLAN', 'Native VLAN', 'Allowed VLAN',
       '速率', '雙工', '類型', 'Port-channel', '鄰居', '鄰居埠'
     ];
-    var rows = [row(headers.map(function (h) { return cell(h, 'Header'); }))];
-
-    device.ports.forEach(function (port) {
-      rows.push(row([
-        cell(device.hostname),
-        cell(port.parts.stack + '/' + port.parts.module),
-        cell(port.name),
-        cell(port.description),
-        cell(port.adminStatus === 'disabled' ? 'shutdown' : 'enabled'),
-        cell(port.linkStatus),
-        cell(port.mode),
-        cell(port.accessVlan),
-        cell(port.vlanName),
-        cell(port.voiceVlan),
-        cell(port.nativeVlan),
-        cell(port.allowedVlans),
-        cell(port.speed),
-        cell(port.duplex),
-        cell(port.type),
-        cell(port.portChannel),
-        cell(port.neighbor),
-        cell(port.neighborPort)
-      ]));
+    var sheet = workbook.addWorksheet('Ports');
+    headers.forEach(function (header, index) {
+      styleHeaderCell(sheet.getCell(1, index + 1), header);
+      sheet.getColumn(index + 1).width = index === 3 ? 28 : 14;
     });
 
-    var filterRange = 'R1C1:R' + (device.ports.length + 1) + 'C' + headers.length;
-    return [
-      '<Worksheet ss:Name="Ports">',
-      '<Table>',
-      columns(headers.length, 90),
-      rows.join(''),
-      '</Table>',
-      '<AutoFilter x:Range="' + filterRange + '" xmlns="urn:schemas-microsoft-com:office:excel"/>',
-      '</Worksheet>'
-    ].join('\n');
+    device.ports.forEach(function (port, rowIndex) {
+      var row = rowIndex + 2;
+      var values = [
+        device.hostname,
+        port.parts.stack + '/' + port.parts.module,
+        port.name,
+        port.description,
+        port.adminStatus === 'disabled' ? 'shutdown' : 'enabled',
+        port.linkStatus,
+        port.mode,
+        port.accessVlan,
+        port.vlanName,
+        port.voiceVlan,
+        port.nativeVlan,
+        port.allowedVlans,
+        port.speed,
+        port.duplex,
+        port.type,
+        port.portChannel,
+        port.neighbor,
+        port.neighborPort
+      ];
+      values.forEach(function (value, colIndex) {
+        sheet.getCell(row, colIndex + 1).value = value;
+      });
+    });
+
+    sheet.autoFilter = {
+      from: { row: 1, column: 1 },
+      to: { row: device.ports.length + 1, column: headers.length }
+    };
   }
 
-  function buildVlansSheet(device) {
+  function buildVlansSheet(workbook, device) {
     var headers = ['VLAN', '名稱', '色碼', '埠數'];
-    var rows = [row(headers.map(function (h) { return cell(h, 'Header'); }))];
-    SD.buildVlanSummary(device).forEach(function (item) {
-      rows.push(row([
-        cell(item.id === 'trunk' ? '' : item.id),
-        cell(item.name),
-        cell(item.color),
-        cell(item.portCount, 'Default', 'Number')
-      ]));
+    var sheet = workbook.addWorksheet('VLANs');
+    headers.forEach(function (header, index) {
+      styleHeaderCell(sheet.getCell(1, index + 1), header);
+      sheet.getColumn(index + 1).width = 16;
     });
 
-    return [
-      '<Worksheet ss:Name="VLANs">',
-      '<Table>',
-      columns(headers.length, 100),
-      rows.join(''),
-      '</Table>',
-      '</Worksheet>'
-    ].join('\n');
+    SD.buildVlanSummary(device).forEach(function (item, rowIndex) {
+      var row = rowIndex + 2;
+      sheet.getCell(row, 1).value = item.id === 'trunk' ? '' : item.id;
+      sheet.getCell(row, 2).value = item.name;
+      sheet.getCell(row, 3).value = item.color;
+      sheet.getCell(row, 4).value = item.portCount;
+      fillCell(sheet.getCell(row, 3), item.color);
+    });
   }
 
-  function buildWorkbookXml(device) {
-    var groups = SD.buildFaceplateGroups(device.physicalPorts);
-    var sheets = groups.map(function (group) {
-      return buildFaceplateSheet(group, device);
-    });
-    sheets.push(buildPortsSheet(device));
-    sheets.push(buildVlansSheet(device));
+  function buildWorkbook(device) {
+    var Excel = getExcelJS();
+    var workbook = new Excel.Workbook();
+    workbook.creator = 'SwitchDraw';
+    workbook.created = new Date();
+    workbook.title = device.hostname + ' Switchport';
 
-    return [
-      '<?xml version="1.0"?>',
-      '<?mso-application progid="Excel.Sheet"?>',
-      '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"',
-      ' xmlns:o="urn:schemas-microsoft-com:office:office"',
-      ' xmlns:x="urn:schemas-microsoft-com:office:excel"',
-      ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"',
-      ' xmlns:html="http://www.w3.org/TR/REC-html40">',
-      '<DocumentProperties xmlns="urn:schemas-microsoft-com:office:office">',
-      '<Title>' + escapeXml(device.hostname + ' Switchport') + '</Title>',
-      '<Author>SwitchDraw</Author>',
-      '</DocumentProperties>',
-      '<Styles>',
-      buildStyles(device),
-      '</Styles>',
-      sheets.join('\n'),
-      '</Workbook>'
-    ].join('\n');
+    SD.buildFaceplateGroups(device.physicalPorts).forEach(function (group) {
+      buildFaceplateSheet(workbook, group, device);
+    });
+    buildPortsSheet(workbook, device);
+    buildVlansSheet(workbook, device);
+
+    return workbook;
+  }
+
+  function buildWorkbookBuffer(device) {
+    var workbook = buildWorkbook(device);
+    return workbook.xlsx.writeBuffer();
   }
 
   function buildWorkbookBlob(device) {
-    var xml = buildWorkbookXml(device);
-    if (typeof Blob !== 'undefined') {
-      return new Blob([xml], { type: 'application/vnd.ms-excel' });
-    }
-    return xml;
+    return buildWorkbookBuffer(device).then(function (buffer) {
+      if (typeof Blob !== 'undefined') {
+        return new Blob([buffer], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+      }
+      return buffer;
+    });
   }
 
-  SD.buildWorkbookXml = buildWorkbookXml;
+  SD.buildWorkbook = buildWorkbook;
+  SD.buildWorkbookBuffer = buildWorkbookBuffer;
   SD.buildWorkbookBlob = buildWorkbookBlob;
-  SD.escapeXml = escapeXml;
 })(SwitchDraw);
 
 (function (root, sd) {

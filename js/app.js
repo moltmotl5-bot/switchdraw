@@ -123,20 +123,33 @@
     reader.readAsText(file);
   }
 
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
+  }
+
   function downloadWorkbooks() {
     if (!currentDevices.length) {
       return;
     }
-    currentDevices.forEach(function (device) {
-      var blob = SwitchDraw.buildWorkbookBlob(device);
-      var url = URL.createObjectURL(blob);
-      var anchor = document.createElement('a');
-      anchor.href = url;
-      anchor.download = device.hostname + '-switchport.xls';
-      document.body.appendChild(anchor);
-      anchor.click();
-      document.body.removeChild(anchor);
-      URL.revokeObjectURL(url);
+
+    downloadBtn.disabled = true;
+    showError('');
+
+    Promise.all(currentDevices.map(function (device) {
+      return SwitchDraw.buildWorkbookBlob(device).then(function (blob) {
+        downloadBlob(blob, device.hostname + '-switchport.xlsx');
+      });
+    })).catch(function (err) {
+      showError('Excel 產生失敗：' + err.message);
+    }).finally(function () {
+      downloadBtn.disabled = !currentDevices.length;
     });
   }
 

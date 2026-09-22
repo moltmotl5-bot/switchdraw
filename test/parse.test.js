@@ -60,14 +60,25 @@ test('buildFaceplateGroups splits odd and even ports', function () {
   assert.ok(giGroup.evenRow.some(function (p) { return p.name === 'Gi1/0/2'; }));
 });
 
-test('buildWorkbookXml contains worksheets and styles', function () {
+test('buildWorkbookBuffer produces valid xlsx zip', async function () {
   var devices = SD.parseLog(sampleLog);
-  var xml = SD.buildWorkbookXml(devices[0]);
+  var buffer = await SD.buildWorkbookBuffer(devices[0]);
+  var bytes = Buffer.from(buffer);
 
-  assert.match(xml, /<\?xml version="1.0"\?>/);
-  assert.match(xml, /<\?mso-application progid="Excel\.Sheet"\?>/);
-  assert.match(xml, /<Worksheet ss:Name="Ports">/);
-  assert.match(xml, /<Worksheet ss:Name="VLANs">/);
-  assert.match(xml, /<Interior ss:Color="#/);
-  assert.match(xml, /SW-CORE-01/);
+  assert.equal(bytes[0], 0x50);
+  assert.equal(bytes[1], 0x4B);
+  assert.ok(bytes.length > 1000);
+});
+
+test('buildWorkbook contains expected worksheets', async function () {
+  var ExcelJS = require('exceljs');
+  var devices = SD.parseLog(sampleLog);
+  var buffer = await SD.buildWorkbookBuffer(devices[0]);
+  var workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(buffer);
+
+  var names = workbook.worksheets.map(function (sheet) { return sheet.name; });
+  assert.ok(names.includes('Ports'));
+  assert.ok(names.includes('VLANs'));
+  assert.ok(names.some(function (name) { return name.indexOf('Gi1-0') !== -1; }));
 });
