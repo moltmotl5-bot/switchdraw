@@ -159,39 +159,35 @@ button:disabled {
 }
 
 .port-box {
-  display: flex;
-  width: 128px;
-  min-height: 56px;
+  width: 108px;
   border-radius: 8px;
   overflow: hidden;
   border: 1px solid rgba(0, 0, 0, 0.12);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 
-.port-vlan-cell {
-  flex: 1.2;
-  padding: 6px;
-  color: #1a1a1a;
-}
-
-.port-status-cell {
-  flex: 0.8;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 4px;
-  font-weight: 600;
+.port-row {
+  padding: 4px 6px;
   text-align: center;
   word-break: break-word;
 }
 
-.port-name {
+.port-row-iface {
+  background: #ecf0f1;
   font-weight: 700;
 }
 
-.port-vlan {
-  opacity: 0.92;
-  word-break: break-all;
+.port-row-vlan {
+  color: #1a1a1a;
+}
+
+.port-row-desc {
+  background: #fff;
+  min-height: 28px;
+}
+
+.port-row-status {
+  font-weight: 600;
 }
 
 footer {

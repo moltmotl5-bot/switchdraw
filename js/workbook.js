@@ -94,41 +94,54 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     return row + 2;
   }
 
-  function writePortRow(sheet, rowIndex, ports, registry) {
+  function writePortBlock(sheet, startRow, ports, registry) {
+    var portCount = ports.length;
+    for (var c = 1; c <= portCount; c++) {
+      sheet.getColumn(c).width = 13;
+    }
+
     ports.forEach(function (port, index) {
-      var colVlan = index * 2 + 1;
-      var colStatus = index * 2 + 2;
-      var vlanCell = sheet.getCell(rowIndex, colVlan);
-      var statusCell = sheet.getCell(rowIndex, colStatus);
+      var col = index + 1;
       var label = SD.portLabel(port);
       var vlanFill = SD.portVlanColor(port, registry);
       var status = SD.portStatusDisplay(port);
+      var description = SD.portDescriptionText(port, false);
 
-      setCellValue(vlanCell, label.title + '\n' + label.vlan);
+      var ifaceCell = sheet.getCell(startRow, col);
+      setCellValue(ifaceCell, label.title);
+      fillCell(ifaceCell, '#ECF0F1', { bold: true, fontSize: 9 });
+
+      var vlanCell = sheet.getCell(startRow + 1, col);
+      setCellValue(vlanCell, SD.portVlanLabel(port));
       fillCell(vlanCell, vlanFill);
 
+      var descCell = sheet.getCell(startRow + 2, col);
+      setCellValue(descCell, description);
+      fillCell(descCell, '#FFFFFF');
+      descCell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+
+      var statusCell = sheet.getCell(startRow + 3, col);
       setCellValue(statusCell, status.text);
       fillCell(statusCell, status.fill, { textColor: status.textColor });
     });
-    sheet.getRow(rowIndex).height = 42;
+
+    sheet.getRow(startRow).height = 18;
+    sheet.getRow(startRow + 1).height = 18;
+    sheet.getRow(startRow + 2).height = 28;
+    sheet.getRow(startRow + 3).height = 18;
+
+    return startRow + 4;
   }
 
   function writeModuleBlock(sheet, group, startRow, registry) {
-    var portCount = Math.max(group.oddRow.length, group.evenRow.length, 1);
-    var colCount = portCount * 2;
-    for (var c = 1; c <= colCount; c++) {
-      sheet.getColumn(c).width = c % 2 === 1 ? 11 : 9;
-    }
-
     var row = startRow;
     styleHeaderCell(sheet.getCell('A' + row), group.moduleLabel + '（奇數埠 · 上排）');
     row += 1;
-    writePortRow(sheet, row, group.oddRow, registry);
-    row += 1;
+    row = writePortBlock(sheet, row, group.oddRow, registry);
     styleHeaderCell(sheet.getCell('A' + row), group.moduleLabel + '（偶數埠 · 下排）');
     row += 1;
-    writePortRow(sheet, row, group.evenRow, registry);
-    return row + 1;
+    row = writePortBlock(sheet, row, group.evenRow, registry);
+    return row;
   }
 
   function buildFaceplateSheet(workbook, device) {

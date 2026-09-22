@@ -1,6 +1,6 @@
 # SwitchDraw
 
-**版本 1.1.5**
+**版本 1.1.6**
 
 輕量的 Cisco IOS / IOS-XE 交換器埠位圖產生器。上傳 PuTTY 擷取的 `*.log`，在瀏覽器本機解析後下載 Excel 前面板圖（標準 `.xlsx`，相容 Microsoft 365 Excel）。
 
@@ -9,20 +9,20 @@
 - 解析 `show running-config`、`show interfaces status`、`show interfaces description`、`show ip interface brief`、`show vlan brief`、`show cdp/lldp neighbors`
 - 依堆疊成員產生前面板圖（奇數埠上排、偶數埠下排）
 - 中央 VLAN 色碼表：同一 VLAN 在圖例、前面板、VLANs 工作表使用相同顏色
-- Excel 前面板每埠分兩格：VLAN（色碼）＋ Port Status（連線狀態）
+- Excel 前面板每埠一欄四列：Interface / VLAN ID / Description / Port Status
 - 附 `Ports` 與 `VLANs` 明細工作表
 
-## Windows 本機測試（v1.1.4）
+## Windows 本機測試（v1.1.6）
 
 1. 取得程式碼：
    ```powershell
    git clone https://github.com/moltmotl5-bot/switchdraw.git
    cd switchdraw
    git pull
-   git checkout v1.1.4
+   git checkout v1.1.6
    ```
 2. 用 **Chrome** 或 **Edge** 開啟 `index.html`。**請按 Ctrl+F5 強制重新整理**，避免載入舊版快取。
-3. 確認頁面標題顯示 **SwitchDraw v1.1.4**，按鈕為「下載 Excel 埠位圖（.xlsx）」。
+3. 確認頁面標題顯示 **SwitchDraw v1.1.6**，按鈕為「下載 Excel 埠位圖（.xlsx）」。
 
 支援 Cisco 縮寫指令（`sh int status`、`sh vlan br`、`sh ip int br`、`sh cdp nei det` 等）。
 4. 先用 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試，下載檔名應為 `*-switchport.xlsx`。
