@@ -14,8 +14,22 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     throw new Error('ExcelJS 未載入');
   }
 
+  function sanitizeCellValue(value) {
+    if (value == null) {
+      return '';
+    }
+    if (typeof value !== 'string') {
+      return value;
+    }
+    return value.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '');
+  }
+
   function hexToArgb(hex) {
     return 'FF' + String(hex || '#FFFFFF').replace('#', '').toUpperCase();
+  }
+
+  function setCellValue(cell, value) {
+    cell.value = sanitizeCellValue(value);
   }
 
   function applyBorder(cell) {
@@ -49,21 +63,21 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
   }
 
   function styleHeaderCell(cell, value) {
-    cell.value = value;
+    setCellValue(cell, value);
     fillCell(cell, '#ECF0F1', { bold: true, fontSize: 10 });
   }
 
   function writeLegend(sheet, device, startRow) {
     var row = startRow;
     var title = sheet.getCell('A' + row);
-    title.value = device.hostname + ' 前面板';
+    setCellValue(title, device.hostname + ' 前面板');
     title.font = { name: 'Calibri', size: 14, bold: true };
     row += 1;
 
-    sheet.getCell('A' + row).value = '總埠數: ' + device.counts.total;
-    sheet.getCell('B' + row).value = 'Up: ' + device.counts.up;
-    sheet.getCell('C' + row).value = 'Down: ' + device.counts.down;
-    sheet.getCell('D' + row).value = 'Shutdown: ' + device.counts.shutdown;
+    setCellValue(sheet.getCell('A' + row), '總埠數: ' + device.counts.total);
+    setCellValue(sheet.getCell('B' + row), 'Up: ' + device.counts.up);
+    setCellValue(sheet.getCell('C' + row), 'Down: ' + device.counts.down);
+    setCellValue(sheet.getCell('D' + row), 'Shutdown: ' + device.counts.shutdown);
     row += 1;
 
     styleHeaderCell(sheet.getCell('A' + row), 'VLAN 圖例');
@@ -73,7 +87,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     legend.forEach(function (item, index) {
       var cell = sheet.getCell(row, index + 1);
       var label = item.id === 'trunk' ? 'TRUNK' : ('VLAN ' + item.id + ' ' + item.name);
-      cell.value = label + ' (' + item.portCount + ')';
+      setCellValue(cell, label + ' (' + item.portCount + ')');
       fillCell(cell, item.color);
     });
 
@@ -85,7 +99,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
       var cell = sheet.getCell(rowIndex, index + 1);
       var style = SD.portStyle(port);
       var label = SD.portLabel(port);
-      cell.value = label.title + '\n' + label.vlan + '\n' + label.detail;
+      setCellValue(cell, label.title + '\n' + label.vlan + '\n' + label.detail);
       fillCell(cell, style.fill, { textColor: style.text });
     });
     sheet.getRow(rowIndex).height = 48;
@@ -145,7 +159,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
         port.neighborPort
       ];
       values.forEach(function (value, colIndex) {
-        sheet.getCell(row, colIndex + 1).value = value;
+        setCellValue(sheet.getCell(row, colIndex + 1), value);
       });
     });
 
@@ -165,9 +179,9 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
 
     SD.buildVlanSummary(device).forEach(function (item, rowIndex) {
       var row = rowIndex + 2;
-      sheet.getCell(row, 1).value = item.id === 'trunk' ? '' : item.id;
-      sheet.getCell(row, 2).value = item.name;
-      sheet.getCell(row, 3).value = item.color;
+      setCellValue(sheet.getCell(row, 1), item.id === 'trunk' ? '' : item.id);
+      setCellValue(sheet.getCell(row, 2), item.name);
+      setCellValue(sheet.getCell(row, 3), item.color);
       sheet.getCell(row, 4).value = item.portCount;
       fillCell(sheet.getCell(row, 3), item.color);
     });
@@ -178,7 +192,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     var workbook = new Excel.Workbook();
     workbook.creator = 'SwitchDraw';
     workbook.created = new Date();
-    workbook.title = device.hostname + ' Switchport';
+    workbook.title = sanitizeCellValue(device.hostname + ' Switchport');
 
     SD.buildFaceplateGroups(device.physicalPorts).forEach(function (group) {
       buildFaceplateSheet(workbook, group, device);
@@ -189,6 +203,19 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     return workbook;
   }
 
+  function toUint8Array(buffer) {
+    if (buffer instanceof Uint8Array) {
+      return buffer;
+    }
+    if (buffer instanceof ArrayBuffer) {
+      return new Uint8Array(buffer);
+    }
+    if (buffer && buffer.buffer instanceof ArrayBuffer) {
+      return new Uint8Array(buffer.buffer, buffer.byteOffset || 0, buffer.byteLength || buffer.length);
+    }
+    return new Uint8Array(buffer);
+  }
+
   function buildWorkbookBuffer(device) {
     var workbook = buildWorkbook(device);
     return workbook.xlsx.writeBuffer();
@@ -196,18 +223,20 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
 
   function buildWorkbookBlob(device) {
     return buildWorkbookBuffer(device).then(function (buffer) {
+      var bytes = toUint8Array(buffer);
       if (typeof Blob !== 'undefined') {
-        return new Blob([buffer], {
+        return new Blob([bytes], {
           type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         });
       }
-      return buffer;
+      return bytes;
     });
   }
 
   SD.buildWorkbook = buildWorkbook;
   SD.buildWorkbookBuffer = buildWorkbookBuffer;
   SD.buildWorkbookBlob = buildWorkbookBlob;
+  SD.sanitizeCellValue = sanitizeCellValue;
 })(SwitchDraw);
 
 (function (root, sd) {

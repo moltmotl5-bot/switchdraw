@@ -1,6 +1,6 @@
 # SwitchDraw
 
-**版本 1.1.0**
+**版本 1.1.1**
 
 輕量的 Cisco IOS / IOS-XE 交換器埠位圖產生器。上傳 PuTTY 擷取的 `*.log`，在瀏覽器本機解析後下載 Excel 前面板圖（標準 `.xlsx`，相容 Microsoft 365 Excel）。
 
@@ -11,19 +11,21 @@
 - 依 VLAN / Trunk / Shutdown 狀態上色
 - 附 `Ports` 與 `VLANs` 明細工作表
 
-## Windows 本機測試（v1.1.0）
+## Windows 本機測試（v1.1.1）
 
 1. 取得程式碼：
    ```powershell
    git clone https://github.com/moltmotl5-bot/switchdraw.git
    cd switchdraw
-   git checkout v1.1.0
+   git pull
+   git checkout v1.1.1
    ```
-2. 用 **Chrome** 或 **Edge** 開啟資料夾內的 `index.html`（雙擊即可）。
-3. 先用內附範例 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試上傳與 Excel 下載。
-4. 再用您從 PuTTY 擷取的真實 `.log` 測試。下載的檔案為 `.xlsx`，可直接用 **Microsoft 365 Excel** 開啟。
+2. 用 **Chrome** 或 **Edge** 開啟 `index.html`。**請按 Ctrl+F5 強制重新整理**，避免載入舊版快取（v1.0.0 會產生無法開啟的 `.xls`）。
+3. 確認頁面標題顯示 **SwitchDraw v1.1.1**，按鈕為「下載 Excel 埠位圖（.xlsx）」。
+4. 先用 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試，下載檔名應為 `*-switchport.xlsx`。
+5. 再用 PuTTY 真實 `.log` 測試。
 
-不需安裝 Node.js 或 npm（`vendor/exceljs.min.js` 已內附）。若瀏覽器阻擋本機檔案，可改用：
+不需安裝 Node.js 或 npm（`vendor/exceljs.bare.min.js` 已內附）。若瀏覽器阻擋本機檔案，可改用：
 ```powershell
 cd switchdraw
 python -m http.server 8080
@@ -50,7 +52,13 @@ PuTTY 設定：**Session → Logging → All session output**，並勾選 **Omit
 2. 拖放或選擇 PuTTY 日誌（`.log` / `.txt`）。
 3. 預覽前面板後，點擊「下載 Excel 埠位圖」。
 
-所有處理都在瀏覽器完成，不會上傳設定檔。Excel 產生使用內附的 [ExcelJS](https://github.com/exceljs/exceljs)（`vendor/exceljs.min.js`），無 CDN、無建置步驟。
+所有處理都在瀏覽器完成，不會上傳設定檔。Excel 產生使用內附的 [ExcelJS](https://github.com/exceljs/exceljs) 瀏覽器版（`vendor/exceljs.bare.min.js`），無 CDN、無建置步驟。
+
+## 安全性（Cortex XDR / 防毒軟體）
+
+輸出 `.xlsx` **不含 VBA 巨集、公式或外部連結**，僅為埠位靜態資料。詳見 [SECURITY.md](SECURITY.md)。
+
+若仍看到 `.xls` 或 Excel 報「檔案毀損」，代表瀏覽器仍在使用 **v1.0.0 舊快取**，請 Ctrl+F5 或重新 clone 後再試。
 
 ## 測試（開發者）
 
@@ -67,5 +75,6 @@ npm test
 - [`js/parse.js`](js/parse.js) — Cisco 日誌解析
 - [`js/faceplate.js`](js/faceplate.js) — 前面板分組與配色
 - [`js/workbook.js`](js/workbook.js) — ExcelJS 活頁簿產生
-- [`vendor/exceljs.min.js`](vendor/exceljs.min.js) — Excel 產生函式庫（內附）
+- [`vendor/exceljs.bare.min.js`](vendor/exceljs.bare.min.js) — Excel 產生函式庫（瀏覽器版，內附）
+- [`SECURITY.md`](SECURITY.md) — 安全性與 XDR 說明
 - [`js/app.js`](js/app.js) — 上傳、預覽、下載 UI

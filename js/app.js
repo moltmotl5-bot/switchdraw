@@ -1,19 +1,29 @@
-/* global SwitchDraw */
+/* global SwitchDraw, ExcelJS */
 (function () {
   'use strict';
 
+  var APP_VERSION = '1.1.1';
   var dropzone = document.getElementById('dropzone');
   var fileInput = document.getElementById('file-input');
   var summaryEl = document.getElementById('summary');
   var previewEl = document.getElementById('preview');
   var downloadBtn = document.getElementById('download-btn');
   var errorEl = document.getElementById('error');
+  var statusEl = document.getElementById('status');
 
   var currentDevices = [];
 
   function showError(message) {
     errorEl.textContent = message;
     errorEl.hidden = !message;
+  }
+
+  function showStatus(message) {
+    if (!statusEl) {
+      return;
+    }
+    statusEl.textContent = message;
+    statusEl.hidden = !message;
   }
 
   function renderSummary(devices) {
@@ -92,6 +102,9 @@
     renderSummary(devices);
     renderPreview(devices);
     downloadBtn.disabled = !devices.length;
+    if (devices.length) {
+      showStatus('就緒。輸出格式：.xlsx（SwitchDraw v' + APP_VERSION + '）');
+    }
   }
 
   function processText(text, filename) {
@@ -128,6 +141,7 @@
     var anchor = document.createElement('a');
     anchor.href = url;
     anchor.download = filename;
+    anchor.type = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
@@ -143,14 +157,33 @@
     showError('');
 
     Promise.all(currentDevices.map(function (device) {
+      var filename = device.hostname + '-switchport.xlsx';
       return SwitchDraw.buildWorkbookBlob(device).then(function (blob) {
-        downloadBlob(blob, device.hostname + '-switchport.xlsx');
+        if (!(blob instanceof Blob)) {
+          throw new Error('Excel 二進位資料產生失敗');
+        }
+        if (blob.size < 1024) {
+          throw new Error('Excel 檔案大小異常（' + blob.size + ' bytes）');
+        }
+        downloadBlob(blob, filename);
+        return filename;
       });
-    })).catch(function (err) {
-      showError('Excel 產生失敗：' + err.message);
+    })).then(function (files) {
+      showStatus('已下載：' + files.join('、') + '（.xlsx 格式，無巨集／無腳本）');
+    }).catch(function (err) {
+      showError('Excel 產生失敗：' + err.message + '。請確認頁面底部顯示 v' + APP_VERSION + '，並清除瀏覽器快取後重試。');
     }).finally(function () {
       downloadBtn.disabled = !currentDevices.length;
     });
+  }
+
+  function verifyRuntime() {
+    if (typeof ExcelJS === 'undefined') {
+      showError('Excel 函式庫未載入。請確認 vendor/exceljs.bare.min.js 存在，並重新整理頁面（Ctrl+F5 清除快取）。');
+      downloadBtn.disabled = true;
+      return;
+    }
+    showStatus('SwitchDraw v' + APP_VERSION + ' 已就緒。輸出格式：.xlsx');
   }
 
   dropzone.addEventListener('click', function () {
@@ -181,4 +214,5 @@
   });
 
   downloadBtn.addEventListener('click', downloadWorkbooks);
+  verifyRuntime();
 })();

@@ -70,6 +70,11 @@ test('buildWorkbookBuffer produces valid xlsx zip', async function () {
   assert.ok(bytes.length > 1000);
 });
 
+test('sanitizeCellValue removes illegal XML control characters', function () {
+  var cleaned = SD.sanitizeCellValue('ok\x00\x07text');
+  assert.equal(cleaned, 'oktext');
+});
+
 test('buildWorkbook contains expected worksheets', async function () {
   var ExcelJS = require('exceljs');
   var devices = SD.parseLog(sampleLog);
