@@ -1,0 +1,40 @@
+TST_C3850#sh run
+!
+hostname TST_C3850
+!
+interface GigabitEthernet1/0/4
+ description HKT_WAN
+ switchport access vlan 788
+!
+interface GigabitEthernet1/0/46
+ description Connected to TSTC Fortigate Master Port 11
+ switchport access vlan 716
+!
+interface GigabitEthernet1/0/47
+ description Connected to TSTC Fortigate Slave Port 1
+ switchport access vlan 1140
+!
+interface TenGigabitEthernet1/1/2
+ switchport mode trunk
+!
+end
+TST_C3850#sh int status
+
+Port      Name               Status       Vlan       Duplex  Speed Type 
+Gi1/0/4   HKT_WAN            connected    788        a-full a-1000 10/100/1000BaseTX
+Gi1/0/46  Connected to TSTC  notconnect   716          auto   auto 10/100/1000BaseTX
+Gi1/0/47  Connected to TSTC  connected    1140       a-full a-1000 10/100/1000BaseTX
+Te1/1/2                      connected    trunk        full    10G SFP-10GBase-CX1
+TST_C3850#sh ip int br
+Interface              IP-Address      OK? Method Status                Protocol
+GigabitEthernet1/0/4   unassigned      YES unset  down                  down
+GigabitEthernet1/0/46  unassigned      YES unset  down                  down
+GigabitEthernet1/0/47  unassigned      YES unset  up                    up
+Te1/1/2                unassigned      YES unset  up                    up
+TST_C3850#sh vlan br
+
+VLAN Name                             Status    Ports
+---- -------------------------------- --------- -------------------------------
+788  HKT_WAN                          active    Gi1/0/4
+716  TST_GuestWiFi                    active    Gi1/0/46
+1140 TST_ServerLAN                    active    Gi1/0/47

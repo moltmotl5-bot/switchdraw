@@ -13,6 +13,7 @@ var SD = globalThis.SwitchDraw;
 
 var sampleLog = fs.readFileSync(path.join(root, 'fixtures', 'sample-cisco.log'), 'utf8');
 var ipBriefLog = fs.readFileSync(path.join(root, 'fixtures', 'sample-ip-brief.log'), 'utf8');
+var c3850Log = fs.readFileSync(path.join(root, 'fixtures', 'sample-c3850-abbrev.log'), 'utf8');
 
 test('cleanLog removes PuTTY noise', function () {
   var cleaned = SD.cleanLog('line1\x08\x08--More-- \nline2');
@@ -107,6 +108,26 @@ test('buildWorkbookBuffer produces valid xlsx zip', async function () {
 test('sanitizeCellValue removes illegal XML control characters', function () {
   var cleaned = SD.sanitizeCellValue('ok\x00\x07text');
   assert.equal(cleaned, 'oktext');
+});
+
+test('parseLog handles abbreviated Cisco commands (sh int status, sh vlan br)', function () {
+  var devices = SD.parseLog(c3850Log);
+  assert.equal(devices.length, 1);
+  assert.equal(devices[0].hostname, 'TST_C3850');
+
+  var gi104 = devices[0].ports.find(function (p) { return p.name === 'Gi1/0/4'; });
+  assert.equal(gi104.linkStatus, 'connected');
+  assert.equal(gi104.vlanName, 'HKT_WAN');
+  assert.equal(gi104.speed, 'a-1000');
+
+  var gi1047 = devices[0].ports.find(function (p) { return p.name === 'Gi1/0/47'; });
+  assert.equal(gi1047.linkStatus, 'connected');
+
+  var gi1046 = devices[0].ports.find(function (p) { return p.name === 'Gi1/0/46'; });
+  assert.equal(gi1046.linkStatus, 'notconnect');
+
+  assert.ok(devices[0].counts.up >= 2);
+  assert.ok(Object.keys(devices[0].vlans).length >= 3);
 });
 
 test('buildWorkbook uses one Faceplate sheet per switch', async function () {

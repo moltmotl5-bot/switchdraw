@@ -125,16 +125,31 @@ var SwitchDraw = SwitchDraw || {};
     return linkStatus === 'connected';
   }
 
-  function extractCommandSection(text, commands) {
+  var COMMAND_PATTERNS = {
+    interfaceStatus: /^(?:show|sh)\s+(?:interfaces?\s+status|int\s+status)$/i,
+    ipBrief: /^(?:show|sh)\s+ip\s+(?:interface\s+|int\s+)(?:brief|br)$/i,
+    vlanBrief: /^(?:show|sh)\s+vlan\s+(?:brief|br)$/i,
+    intDescription: /^(?:show|sh)\s+(?:interfaces?\s+description|int\s+desc(?:ription)?)$/i,
+    cdpNeighbors: /^(?:show|sh)\s+cdp\s+nei(?:ghbors)?(?:\s+(?:detail|det))?$/i,
+    lldpNeighbors: /^(?:show|sh)\s+lldp\s+nei(?:ghbors)?(?:\s+(?:detail|det))?$/i
+  };
+
+  function stripPrompt(line) {
+    return line.replace(/^[A-Za-z0-9_.-]+[#>]\s*/, '').trim();
+  }
+
+  function extractCommandSection(text, patterns) {
     var lines = text.split('\n');
     var startIdx = -1;
+    var list = Array.isArray(patterns) ? patterns : [patterns];
 
     for (var i = 0; i < lines.length; i++) {
-      var line = lines[i];
-      var lower = line.toLowerCase();
-      for (var c = 0; c < commands.length; c++) {
-        var cmd = commands[c].toLowerCase();
-        if (lower.indexOf(cmd) !== -1 && /(?:^|[#>\s])(?:show|sh)\s/i.test(line)) {
+      var cmdLine = stripPrompt(lines[i]);
+      if (!cmdLine) {
+        continue;
+      }
+      for (var p = 0; p < list.length; p++) {
+        if (list[p].test(cmdLine)) {
           startIdx = i + 1;
           break;
         }
@@ -154,7 +169,7 @@ var SwitchDraw = SwitchDraw || {};
       if (/^[A-Za-z0-9_.-]+[#>]/.test(row)) {
         break;
       }
-      if (/^(?:show|sh)\s+/i.test(row.trim())) {
+      if (/^(?:show|sh)\s+/i.test(stripPrompt(row))) {
         break;
       }
       sectionLines.push(row);
@@ -282,6 +297,22 @@ var SwitchDraw = SwitchDraw || {};
     return '';
   }
 
+  function parseInterfaceTail(line) {
+    var match = line.match(/\s+(trunk|\d{1,4})\s+(a-full|a-half|full|half|auto)\s+(a-[\d.]+(?:G|M|K)?|\d+[\d.]*(?:G|M|K)?|auto)\s+(\S.*)$/i);
+    if (!match) {
+      match = line.match(/\s+(trunk|\d{1,4})\s+(a-full|a-half|full|half|auto)\s+(auto)\s+(\S.*)$/i);
+    }
+    if (!match) {
+      return null;
+    }
+    return {
+      vlan: match[1],
+      duplex: match[2],
+      speed: match[3],
+      type: match[4].trim()
+    };
+  }
+
   function parseStatusLineFromRight(rest) {
     var type = '';
     var speed = '';
@@ -314,13 +345,30 @@ var SwitchDraw = SwitchDraw || {};
       rest = rest.slice(0, vlanMatch.index).trim();
     }
 
-    var statusMatch = rest.match(/\s+(connected(?::\s*\S+)?|notconnect|disabled|err-disabled|up|down)\s*$/i);
-    if (statusMatch) {
-      status = statusMatch[1].trim();
-      rest = rest.slice(0, statusMatch.index).trim();
+    var tokens = rest.split(/\s+/);
+    var statusWords = ['connected', 'notconnect', 'disabled', 'err-disabled', 'up', 'down'];
+    var statusIndex = -1;
+    var i;
+    for (i = 0; i < tokens.length; i++) {
+      var token = tokens[i].toLowerCase();
+      if (statusWords.indexOf(token) !== -1 || token.indexOf('connected:') === 0) {
+        statusIndex = i;
+        break;
+      }
     }
-
-    description = rest.trim();
+    if (statusIndex >= 0) {
+      status = tokens[statusIndex];
+      description = tokens.slice(0, statusIndex).join(' ');
+      var tail = tokens.slice(statusIndex + 1);
+      if (tail.length >= 4) {
+        vlan = tail[0];
+        duplex = tail[1];
+        speed = tail[2];
+        type = tail.slice(3).join(' ');
+      }
+    } else {
+      description = rest.trim();
+    }
     return {
       description: description,
       status: normalizeLinkStatus(status),
@@ -361,10 +409,18 @@ var SwitchDraw = SwitchDraw || {};
       if (positions.length >= 4) {
         entry.description = valueAtColumn(line, positions, 'Name');
         entry.status = normalizeLinkStatus(valueAtColumn(line, positions, 'Status'));
-        entry.vlan = valueAtColumn(line, positions, 'Vlan');
-        entry.duplex = valueAtColumn(line, positions, 'Duplex');
-        entry.speed = valueAtColumn(line, positions, 'Speed');
-        entry.type = valueAtColumn(line, positions, 'Type');
+        var tail = parseInterfaceTail(line);
+        if (tail) {
+          entry.vlan = tail.vlan;
+          entry.duplex = tail.duplex;
+          entry.speed = tail.speed;
+          entry.type = tail.type;
+        } else {
+          entry.vlan = valueAtColumn(line, positions, 'Vlan');
+          entry.duplex = valueAtColumn(line, positions, 'Duplex');
+          entry.speed = valueAtColumn(line, positions, 'Speed');
+          entry.type = valueAtColumn(line, positions, 'Type');
+        }
       } else {
         var parsed = parseStatusLineFromRight(portMatch[2]);
         entry.description = parsed.description;
@@ -382,11 +438,7 @@ var SwitchDraw = SwitchDraw || {};
   }
 
   function parseInterfaceStatus(text) {
-    var section = extractCommandSection(text, [
-      'show interfaces status',
-      'show interface status',
-      'show int status'
-    ]);
+    var section = extractCommandSection(text, COMMAND_PATTERNS.interfaceStatus);
     return section ? parseInterfaceStatusSection(section) : {};
   }
 
@@ -425,10 +477,7 @@ var SwitchDraw = SwitchDraw || {};
   }
 
   function parseIpInterfaceBrief(text) {
-    var section = extractCommandSection(text, [
-      'show ip interface brief',
-      'show ip int brief'
-    ]);
+    var section = extractCommandSection(text, COMMAND_PATTERNS.ipBrief);
     return section ? parseIpInterfaceBriefSection(section) : {};
   }
 
@@ -438,8 +487,8 @@ var SwitchDraw = SwitchDraw || {};
       merged[port] = Object.assign({}, primary[port]);
     });
     Object.keys(secondary).forEach(function (port) {
-      if (!merged[port] || !merged[port].status || merged[port].status === 'unknown') {
-        merged[port] = Object.assign({}, merged[port] || {}, secondary[port]);
+      if (!merged[port]) {
+        merged[port] = Object.assign({}, secondary[port]);
       }
     });
     return merged;
@@ -518,11 +567,7 @@ var SwitchDraw = SwitchDraw || {};
   }
 
   function parseInterfacesDescription(text) {
-    var section = extractCommandSection(text, [
-      'show interfaces description',
-      'show interface description',
-      'show int description'
-    ]);
+    var section = extractCommandSection(text, COMMAND_PATTERNS.intDescription);
     return section ? parseInterfacesDescriptionSection(section) : {};
   }
 
@@ -575,14 +620,8 @@ var SwitchDraw = SwitchDraw || {};
   }
 
   function parseVlanBrief(text) {
-    var section = extractCommandSection(text, ['show vlan brief']);
+    var section = extractCommandSection(text, COMMAND_PATTERNS.vlanBrief);
     var vlans = section ? parseVlanBriefSection(section) : {};
-
-    if (!Object.keys(vlans).length) {
-      section = extractCommandSection(text, ['show vlan']);
-      vlans = section ? parseVlanBriefSection(section) : {};
-    }
-
     return Object.assign({}, parseVlansFromConfig(text), vlans);
   }
 
@@ -600,7 +639,7 @@ var SwitchDraw = SwitchDraw || {};
   }
 
   function parseCdpNeighbors(text) {
-    var section = extractCommandSection(text, ['show cdp neighbors detail', 'show cdp neighbors']);
+    var section = extractCommandSection(text, COMMAND_PATTERNS.cdpNeighbors);
     if (!section) {
       return {};
     }
@@ -644,7 +683,7 @@ var SwitchDraw = SwitchDraw || {};
   }
 
   function parseLldpNeighbors(text) {
-    var section = extractCommandSection(text, ['show lldp neighbors detail', 'show lldp neighbors']);
+    var section = extractCommandSection(text, COMMAND_PATTERNS.lldpNeighbors);
     if (!section) {
       return {};
     }
@@ -797,6 +836,7 @@ var SwitchDraw = SwitchDraw || {};
   SD.isPhysicalInterface = isPhysicalInterface;
   SD.compareInterfaces = compareInterfaces;
   SD.extractCommandSection = extractCommandSection;
+  SD.COMMAND_PATTERNS = COMMAND_PATTERNS;
 })(SwitchDraw);
 
 (function (root, sd) {
