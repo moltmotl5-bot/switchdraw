@@ -1,27 +1,27 @@
 # SwitchDraw
 
-**版本 1.1.2**
+**版本 1.1.3**
 
 輕量的 Cisco IOS / IOS-XE 交換器埠位圖產生器。上傳 PuTTY 擷取的 `*.log`，在瀏覽器本機解析後下載 Excel 前面板圖（標準 `.xlsx`，相容 Microsoft 365 Excel）。
 
 ## 功能
 
-- 解析 `show running-config`、`show interfaces status`、`show vlan brief`、`show cdp neighbors`、`show lldp neighbors`
+- 解析 `show running-config`、`show interfaces status`、`show interfaces description`、`show ip interface brief`、`show vlan brief`、`show cdp/lldp neighbors`
 - 依堆疊成員產生前面板圖（奇數埠上排、偶數埠下排）
 - 依 VLAN / Trunk / Shutdown 狀態上色
 - 附 `Ports` 與 `VLANs` 明細工作表
 
-## Windows 本機測試（v1.1.2）
+## Windows 本機測試（v1.1.3）
 
 1. 取得程式碼：
    ```powershell
    git clone https://github.com/moltmotl5-bot/switchdraw.git
    cd switchdraw
    git pull
-   git checkout v1.1.2
+   git checkout v1.1.3
    ```
 2. 用 **Chrome** 或 **Edge** 開啟 `index.html`。**請按 Ctrl+F5 強制重新整理**，避免載入舊版快取。
-3. 確認頁面標題顯示 **SwitchDraw v1.1.2**，按鈕為「下載 Excel 埠位圖（.xlsx）」。
+3. 確認頁面標題顯示 **SwitchDraw v1.1.3**，按鈕為「下載 Excel 埠位圖（.xlsx）」。
 4. 先用 [`fixtures/sample-cisco.log`](fixtures/sample-cisco.log) 測試，下載檔名應為 `*-switchport.xlsx`。
 5. 再用 PuTTY 真實 `.log` 測試。
 
@@ -39,6 +39,8 @@ terminal length 0
 terminal width 0
 show running-config
 show interfaces status
+show interfaces description
+show ip interface brief
 show vlan brief
 show cdp neighbors detail
 show lldp neighbors detail

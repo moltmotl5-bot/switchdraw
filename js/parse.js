@@ -445,6 +445,87 @@ var SwitchDraw = SwitchDraw || {};
     return merged;
   }
 
+  function descriptionHeaderPositions(headerLine) {
+    var names = ['Interface', 'Status', 'Protocol', 'Description'];
+    var positions = [];
+    names.forEach(function (name) {
+      var idx = headerLine.indexOf(name);
+      if (idx >= 0) {
+        positions.push({ name: name, start: idx });
+      }
+    });
+    positions.sort(function (a, b) { return a.start - b.start; });
+    return positions;
+  }
+
+  function parseInterfacesDescriptionSection(section) {
+    var lines = section.split('\n');
+    var result = {};
+    var started = false;
+    var positions = [];
+
+    lines.forEach(function (line) {
+      if (/^Interface\s+/i.test(line) && /Description/i.test(line)) {
+        started = true;
+        positions = descriptionHeaderPositions(line);
+        return;
+      }
+      if (!started || !line.trim() || /^[-\s]+$/.test(line)) {
+        return;
+      }
+
+      var portMatch = line.match(new RegExp('^(' + PORT_PREFIX + '\\S*)\\s*(.*)$', 'i'));
+      if (!portMatch) {
+        return;
+      }
+
+      var port = normalizeInterfaceName(portMatch[1]);
+      if (!isPhysicalInterface(port)) {
+        return;
+      }
+
+      var entry = { name: port };
+      if (positions.length >= 3) {
+        var statusText = line.substring(
+          positions[1].start,
+          positions[2] ? positions[2].start : line.length
+        ).trim();
+        var protocol = positions[2] && positions[3]
+          ? line.substring(positions[2].start, positions[3].start).trim()
+          : '';
+        var description = positions[3]
+          ? line.substring(positions[3].start).trim()
+          : '';
+        entry.status = normalizeLinkStatus(statusText, protocol);
+        entry.adminDown = statusText.toLowerCase().indexOf('admin') !== -1;
+        entry.description = description;
+      } else {
+        var restMatch = portMatch[2].match(/^((?:admin\s+down|\S+))\s+(\S+)\s*(.*)$/i);
+        if (!restMatch) {
+          return;
+        }
+        entry.status = normalizeLinkStatus(restMatch[1], restMatch[2]);
+        entry.adminDown = restMatch[1].toLowerCase().indexOf('admin') !== -1;
+        entry.description = restMatch[3].trim();
+      }
+
+      if (entry.description) {
+        result[port] = entry;
+      }
+    });
+
+    return result;
+  }
+
+  function parseInterfacesDescription(text) {
+    var section = extractCommandSection(text, [
+      'show interfaces description',
+      'show interface description',
+      'show int description'
+    ]);
+    return section ? parseInterfacesDescriptionSection(section) : {};
+  }
+
   function parseVlanBriefSection(section) {
     var lines = section.split('\n');
     var vlans = {};
@@ -604,25 +685,28 @@ var SwitchDraw = SwitchDraw || {};
     return merged;
   }
 
-  function mergePortData(config, status, vlans, neighbors) {
+  function mergePortData(config, status, vlans, neighbors, descriptions) {
     var names = {};
     Object.keys(config).forEach(function (k) { names[k] = true; });
     Object.keys(status).forEach(function (k) { names[k] = true; });
+    Object.keys(descriptions || {}).forEach(function (k) { names[k] = true; });
 
     var ports = [];
     Object.keys(names).sort(compareInterfaces).forEach(function (name) {
       var cfg = config[name] || {};
       var st = status[name] || {};
+      var desc = (descriptions && descriptions[name]) || {};
       var n = neighbors[name] || {};
       var accessVlan = cfg.accessVlan || (cfg.mode !== 'trunk' && st.vlan && st.vlan !== 'trunk' ? st.vlan : '');
       var vlanName = accessVlan && vlans[accessVlan] ? vlans[accessVlan].name : '';
-      var adminStatus = cfg.adminStatus || (st.adminDown ? 'disabled' : 'enabled');
-      var linkStatus = st.status || 'unknown';
+      var adminStatus = cfg.adminStatus || (st.adminDown || desc.adminDown ? 'disabled' : 'enabled');
+      var linkStatus = st.status || desc.status || 'unknown';
+      var bestDescription = cfg.description || desc.description || st.description || '';
 
       ports.push({
         name: name,
         parts: parseInterfaceParts(name),
-        description: cfg.description || st.description || '',
+        description: bestDescription,
         adminStatus: adminStatus,
         linkStatus: linkStatus,
         mode: cfg.mode || (st.vlan === 'trunk' ? 'trunk' : 'access'),
@@ -667,9 +751,10 @@ var SwitchDraw = SwitchDraw || {};
       parseInterfaceStatus(text),
       parseIpInterfaceBrief(text)
     );
+    var descriptions = parseInterfacesDescription(text);
     var vlans = parseVlanBrief(text);
     var neighbors = mergeNeighbors(parseCdpNeighbors(text), parseLldpNeighbors(text));
-    var ports = mergePortData(config, status, vlans, neighbors);
+    var ports = mergePortData(config, status, vlans, neighbors, descriptions);
     vlans = enrichVlansFromPorts(vlans, ports);
 
     var physical = ports.filter(function (p) { return p.physical; });

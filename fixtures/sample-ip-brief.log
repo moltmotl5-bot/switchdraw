@@ -30,6 +30,14 @@ interface TenGigabitEthernet1/1/1
  switchport mode trunk
 !
 end
+SW-ACCESS-01#show interfaces description
+Interface              Status         Protocol Description
+Gi1/0/1                up             up       OFFICE PC FULL DESCRIPTION
+Gi1/0/2                up             up       GUEST AP UPLINK PORT
+Gi1/0/3                admin down     down     
+Gi1/0/47               up             up       TRUNK TO CORE DIST SWITCH
+Gi2/0/1                up             up       STACK MEMBER LINK
+Te1/1/1                up             up       10G UPLINK CORE
 SW-ACCESS-01#show ip interface brief
 Interface              IP-Address      OK? Method Status                Protocol
 Vlan1                  unassigned      YES NVRAM  up                    up

@@ -71,6 +71,18 @@ test('parseLog handles show ip interface brief with up status', function () {
   assert.ok(device.counts.up >= 4);
 });
 
+test('parseLog uses show interfaces description as description fallback', function () {
+  var devices = SD.parseLog(ipBriefLog);
+  var gi102 = devices[0].ports.find(function (p) { return p.name === 'Gi1/0/2'; });
+  assert.equal(gi102.description, 'USER-PC-02');
+
+  var te111 = devices[0].ports.find(function (p) { return p.name === 'Te1/1/1'; });
+  assert.equal(te111.description, '10G UPLINK CORE');
+
+  var gi1047 = devices[0].ports.find(function (p) { return p.name === 'Gi1/0/47'; });
+  assert.equal(gi1047.description, 'TRUNK TO CORE DIST SWITCH');
+});
+
 test('buildFaceplateGroups splits odd and even ports', function () {
   var devices = SD.parseLog(sampleLog);
   var groups = SD.buildFaceplateGroups(devices[0].physicalPorts);
