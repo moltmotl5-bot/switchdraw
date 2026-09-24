@@ -118,6 +118,24 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     };
   }
 
+  function portVlanTextColor(port) {
+    if (port.mode === 'trunk' || port.mode === 'routed') {
+      return '#FFFFFF';
+    }
+    if (port.adminStatus === 'disabled') {
+      return '#2C3E50';
+    }
+    return '#1A1A1A';
+  }
+
+  function portVlanDisplay(port, registry) {
+    return {
+      text: portVlanLabel(port),
+      fill: portVlanColor(port, registry),
+      textColor: portVlanTextColor(port)
+    };
+  }
+
   function portVlanLabel(port) {
     if (port.mode === 'trunk') {
       return 'TRUNK';
@@ -226,6 +244,8 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
   SD.enrichDevice = enrichDevice;
   SD.getVlanColor = getVlanColor;
   SD.portVlanColor = portVlanColor;
+  SD.portVlanDisplay = portVlanDisplay;
+  SD.portVlanTextColor = portVlanTextColor;
   SD.portStatusDisplay = portStatusDisplay;
   SD.portStyle = portStyle;
   SD.portLabel = portLabel;

@@ -1,7 +1,7 @@
 (function () {
   'use strict';
 
-  var APP_VERSION = '1.2.3';
+  var APP_VERSION = '1.2.4';
 
   function currentPage() {
     var path = (location.pathname || '').split('/').pop() || 'index.html';

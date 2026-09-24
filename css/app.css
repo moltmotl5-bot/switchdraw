@@ -450,7 +450,7 @@ button:disabled {
 }
 
 .port-row-vlan {
-  color: #1a1a1a;
+  font-weight: 600;
 }
 
 .port-row-desc {

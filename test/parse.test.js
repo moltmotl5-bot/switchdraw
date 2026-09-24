@@ -147,6 +147,16 @@ test('portStatusDisplay separates status from vlan color', function () {
   assert.notEqual(vlanColor, status.fill);
 });
 
+test('portVlanDisplay uses light text on trunk background', function () {
+  var devices = SD.parseLog(sampleLog).map(function (d) { return SD.enrichDevice(d); });
+  var trunkPort = devices[0].ports.find(function (p) { return p.mode === 'trunk'; });
+  assert.ok(trunkPort, 'expected a trunk port in sample log');
+  var vlan = SD.portVlanDisplay(trunkPort, devices[0].colorRegistry);
+  assert.equal(vlan.text, 'TRUNK');
+  assert.equal(vlan.fill, SD.TRUNK_COLOR);
+  assert.equal(vlan.textColor, '#FFFFFF');
+});
+
 test('buildWorkbook uses one Faceplate sheet per switch', async function () {
   var ExcelJS = require('exceljs');
   var devices = SD.parseLog(ipBriefLog);

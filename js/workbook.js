@@ -103,7 +103,7 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     ports.forEach(function (port, index) {
       var col = index + 1;
       var label = SD.portLabel(port);
-      var vlanFill = SD.portVlanColor(port, registry);
+      var vlan = SD.portVlanDisplay(port, registry);
       var status = SD.portStatusDisplay(port);
       var description = SD.portDescriptionText(port, false);
 
@@ -112,8 +112,8 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
       fillCell(ifaceCell, '#ECF0F1', { bold: true, fontSize: 9 });
 
       var vlanCell = sheet.getCell(startRow + 1, col);
-      setCellValue(vlanCell, SD.portVlanLabel(port));
-      fillCell(vlanCell, vlanFill);
+      setCellValue(vlanCell, vlan.text);
+      fillCell(vlanCell, vlan.fill, { textColor: vlan.textColor });
 
       var descCell = sheet.getCell(startRow + 2, col);
       setCellValue(descCell, description);

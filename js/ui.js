@@ -14,12 +14,12 @@ var SwitchDraw = SwitchDraw || {};
 
   function renderPortBox(port, registry) {
     var label = SD.portLabel(port);
-    var vlanFill = SD.portVlanColor(port, registry);
+    var vlan = SD.portVlanDisplay(port, registry);
     var status = SD.portStatusDisplay(port);
     return [
       '<div class="port-box">',
       '<div class="port-row port-row-iface">' + escapeHtml(label.title) + '</div>',
-      '<div class="port-row port-row-vlan" style="background:' + vlanFill + '">' + escapeHtml(label.vlan) + '</div>',
+      '<div class="port-row port-row-vlan" style="background:' + vlan.fill + ';color:' + vlan.textColor + '">' + escapeHtml(vlan.text) + '</div>',
       '<div class="port-row port-row-desc">' + escapeHtml(label.detail) + '</div>',
       '<div class="port-row port-row-status" style="background:' + status.fill + ';color:' + status.textColor + '">' + escapeHtml(status.text) + '</div>',
       '</div>'
