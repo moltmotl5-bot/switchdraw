@@ -118,18 +118,46 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
     };
   }
 
+  function portVlanTextColor(port) {
+    if (port.mode === 'trunk' || port.mode === 'routed') {
+      return '#FFFFFF';
+    }
+    if (port.adminStatus === 'disabled') {
+      return '#2C3E50';
+    }
+    return '#1A1A1A';
+  }
+
+  function portVlanDisplay(port, registry) {
+    return {
+      text: portVlanLabel(port),
+      fill: portVlanColor(port, registry),
+      textColor: portVlanTextColor(port)
+    };
+  }
+
+  function portVlanLabel(port) {
+    if (port.mode === 'trunk') {
+      return 'TRUNK';
+    }
+    return port.accessVlan || '-';
+  }
+
+  function portDescriptionText(port, truncatePreview) {
+    var text = port.description || port.neighbor || '';
+    if (truncatePreview && text.length > 18) {
+      return text.slice(0, 16) + '..';
+    }
+    return text;
+  }
+
   function portLabel(port) {
     var parts = port.parts;
     var shortName = parts.normalized.replace(/^([A-Za-z]+)/, function (m) { return m; });
-    var line2 = port.mode === 'trunk' ? 'TRUNK' : (port.accessVlan || '-');
-    var line3 = port.neighbor || port.description || '';
-    if (line3.length > 18) {
-      line3 = line3.slice(0, 16) + '..';
-    }
     return {
       title: shortName,
-      vlan: line2,
-      detail: line3,
+      vlan: portVlanLabel(port),
+      detail: portDescriptionText(port, true),
       status: portStatusDisplay(port).text
     };
   }
@@ -216,9 +244,13 @@ var SwitchDraw = (typeof globalThis !== 'undefined' ? globalThis : this).SwitchD
   SD.enrichDevice = enrichDevice;
   SD.getVlanColor = getVlanColor;
   SD.portVlanColor = portVlanColor;
+  SD.portVlanDisplay = portVlanDisplay;
+  SD.portVlanTextColor = portVlanTextColor;
   SD.portStatusDisplay = portStatusDisplay;
   SD.portStyle = portStyle;
   SD.portLabel = portLabel;
+  SD.portVlanLabel = portVlanLabel;
+  SD.portDescriptionText = portDescriptionText;
   SD.buildFaceplateGroups = buildFaceplateGroups;
   SD.buildVlanSummary = buildVlanSummary;
   SD.TRUNK_COLOR = TRUNK_COLOR;
